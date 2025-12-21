@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Wiki Item Details">
+    <title>Item Details - RPG Game Wiki</title>
+    <link rel="stylesheet" href="assets/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="index.html" class="logo">Game Wiki</a>
+                <button class="close-sidebar-btn" id="closeSidebar" aria-label="Close Sidebar">&times;</button>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <h3>Core</h3>
+                    <ul id="nav-core">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <h3>Player</h3>
+                    <ul id="nav-player">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <h3>World</h3>
+                    <ul id="nav-world">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Overlay for mobile sidebar -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <header class="top-bar">
+                <button class="menu-btn" id="menuBtn" aria-label="Open Sidebar">
+                    <span class="hamburger"></span>
+                </button>
+                <div class="search-container">
+                    <input type="text" id="searchInput" placeholder="Search the wiki...">
+                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <div id="searchResults" class="search-results"></div>
+                </div>
+                <div class="user-controls">
+                    <button id="authBtn" class="auth-btn">Login</button>
+                    <span id="userDisplay" class="user-display">Guest</span>
+                </div>
+            </header>
+
+            <main>
+                <div id="itemDetailContainer">
+                    <!-- Item details injected here -->
+                    <div class="loading-state">Loading item details...</div>
+                </div>
+            </main>
+
+            <footer>
+                <p>&copy; 2025 RPG Game Wiki. Content is available under CC BY-NC-SA 3.0 unless otherwise noted.</p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div id="loginError" class="error-msg"></div>
+                <button type="submit" class="btn-primary">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="assets/data.js"></script>
+    <script src="assets/script.js"></script>
+</body>
+
+</html>

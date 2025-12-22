@@ -320,6 +320,14 @@ function renderHome(container) {
             };
 
             adminBar.appendChild(saveBtn);
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = '⬇️ Download Changes';
+            downloadBtn.className = 'btn-primary';
+            downloadBtn.style.cssText = 'width:auto; margin-left:10px; background-color: #2196F3;';
+            downloadBtn.onclick = downloadChanges;
+            adminBar.appendChild(downloadBtn);
+
             adminBar.appendChild(addBtn);
             container.appendChild(adminBar);
         }
@@ -468,6 +476,33 @@ function renderHome(container) {
 }
 
 // --- ADMIN EDIT ACTIONS ---
+
+function downloadChanges() {
+    // Construct the data.js file content
+    // Include users array (unchanged) and wikiData (current state from localWikiData)
+
+    const usersStr = JSON.stringify(users, null, 4);
+    const wikiDataStr = JSON.stringify({ categories: localWikiData.categories }, null, 4);
+
+    const fileContent = `const users = ${usersStr};
+
+const wikiData = ${wikiDataStr};
+`;
+
+    // Create Blob and trigger download
+    const blob = new Blob([fileContent], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'data.js';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    console.log('Downloaded data.js');
+}
 
 function addCategory() {
     console.log('addCategory function started (Automated)');

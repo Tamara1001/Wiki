@@ -23,24 +23,9 @@
                 <button class="close-sidebar-btn" id="closeSidebar" aria-label="Close Sidebar">&times;</button>
             </div>
             <nav class="sidebar-nav">
-                <div class="nav-section">
-                    <h3>Core</h3>
-                    <ul id="nav-core">
-                        <!-- Populated by JS -->
-                    </ul>
-                </div>
-                <div class="nav-section">
-                    <h3>Player</h3>
-                    <ul id="nav-player">
-                        <!-- Populated by JS -->
-                    </ul>
-                </div>
-                <div class="nav-section">
-                    <h3>World</h3>
-                    <ul id="nav-world">
-                        <!-- Populated by JS -->
-                    </ul>
-                </div>
+                <ul id="nav-categories">
+                    <!-- Populated by JS -->
+                </ul>
             </nav>
         </aside>
 
@@ -53,17 +38,23 @@
                 <button class="menu-btn" id="menuBtn" aria-label="Open Sidebar">
                     <span class="hamburger"></span>
                 </button>
-                <div class="search-container">
-                    <input type="text" id="searchInput" placeholder="Search the wiki...">
-                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                    <div id="searchResults" class="search-results"></div>
+                <div class="top-bar-left">
+                    <div class="search-container">
+                        <input type="text" id="searchInput" placeholder="Search the wiki...">
+                        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <div id="searchResults" class="search-results"></div>
+                    </div>
+                    <div id="adminControls" class="admin-controls">
+                        <!-- Admin Menu + Edit Mode buttons added by JS -->
+                    </div>
                 </div>
                 <div class="user-controls">
+                    <!-- Character selector added by JS -->
                     <button id="authBtn" class="auth-btn">Login</button>
                     <span id="userDisplay" class="user-display">Guest</span>
                 </div>
@@ -73,8 +64,9 @@
                 <!-- Hero Section -->
                 <section class="hero">
                     <div class="hero-content">
-                        <h1>Welcome to the Wiki</h1>
-                        <p>The ultimate resource for adventurers. Explore classes, items, monsters, and spells.</p>
+                        <h1 id="heroTitle">Welcome to the Wiki</h1>
+                        <p id="heroSubtitle">The ultimate resource for adventurers. Explore classes, items, monsters,
+                            and spells.</p>
                     </div>
                 </section>
 

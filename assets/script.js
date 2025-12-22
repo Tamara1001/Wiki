@@ -67,6 +67,18 @@ function initAuth() {
     const storedUser = sessionStorage.getItem('wikiUser');
     if (storedUser) {
         currentUser = JSON.parse(storedUser);
+
+        // Ensure default character is set on page load
+        const userChars = getUserCharacters(currentUser.username);
+        if (userChars && userChars.length > 0 && !sessionStorage.getItem('selectedCharacter')) {
+            sessionStorage.setItem('selectedCharacter', userChars[0]);
+        }
+
+        // Restore Edit Mode state
+        if (currentUser.role === 'admin') {
+            isEditMode = sessionStorage.getItem('isEditMode') === 'true';
+        }
+
         updateAuthUI();
     }
 
@@ -136,6 +148,13 @@ async function login(username, password) {
         };
         sessionStorage.setItem('wikiUser', JSON.stringify(currentUser));
         loginModal.style.display = 'none';
+
+        // Set default character if user has characters
+        const userChars = getUserCharacters(currentUser.username);
+        if (userChars && userChars.length > 0 && !sessionStorage.getItem('selectedCharacter')) {
+            sessionStorage.setItem('selectedCharacter', userChars[0]);
+        }
+
         updateAuthUI();
 
         // Refresh content to show permitted items
@@ -154,7 +173,9 @@ async function login(username, password) {
 
 function logout() {
     currentUser = null;
+    isEditMode = false;
     sessionStorage.removeItem('wikiUser');
+    sessionStorage.removeItem('isEditMode');
     updateAuthUI();
 
     // Refresh content
@@ -177,14 +198,36 @@ function updateAuthUI() {
         userDisplay.textContent = currentUser.username + (currentUser.role === 'admin' ? ' (Admin)' : '');
 
         if (currentUser.role === 'admin') {
+            // Get the admin controls container (left side of top bar)
+            const adminControls = document.getElementById('adminControls');
+
+            // Clear existing admin controls
+            if (adminControls) adminControls.innerHTML = '';
+
+            // Admin Panel Button (first)
+            const adminBtn = document.createElement('button');
+            adminBtn.id = 'adminPanelBtn';
+            adminBtn.type = 'button';
+            adminBtn.className = 'btn-primary';
+            adminBtn.style.cssText = 'padding: 5px 10px; font-size: 0.9em; background-color: #9c27b0;';
+            adminBtn.textContent = '⚙️ Admin';
+            adminBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.location.href = 'admin.html';
+            });
+            if (adminControls) adminControls.appendChild(adminBtn);
+
+            // Edit Mode Toggle (second)
             const toggle = document.createElement('button');
             toggle.id = 'editModeToggle';
             toggle.className = 'btn-primary';
-            toggle.style.cssText = 'padding: 5px 10px; margin-right: 10px; font-size: 0.9em;';
+            toggle.style.cssText = 'padding: 5px 10px; font-size: 0.9em;';
             toggle.textContent = isEditMode ? 'Exit Edit Mode' : 'Edit Mode';
             toggle.onclick = () => {
                 isEditMode = !isEditMode;
-                updateAuthUI(); // Update button text
+                sessionStorage.setItem('isEditMode', isEditMode);
+                updateAuthUI();
 
                 // Refresh content
                 if (window.location.pathname.includes('item.html')) {
@@ -195,24 +238,7 @@ function updateAuthUI() {
                     if (contentGrid) renderHome(contentGrid);
                 }
             };
-            controls.insertBefore(toggle, userDisplay);
-
-            // Admin Panel Button
-            const existingAdminBtn = document.getElementById('adminPanelBtn');
-            if (existingAdminBtn) existingAdminBtn.remove();
-
-            const adminBtn = document.createElement('button');
-            adminBtn.id = 'adminPanelBtn';
-            adminBtn.type = 'button'; // Prevent form submission
-            adminBtn.className = 'btn-primary';
-            adminBtn.style.cssText = 'padding: 5px 10px; margin-right: 10px; font-size: 0.9em; background-color: #9c27b0;';
-            adminBtn.textContent = '⚙️ Admin';
-            adminBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.location.href = 'admin.html';
-            });
-            controls.insertBefore(adminBtn, userDisplay);
+            if (adminControls) adminControls.appendChild(toggle);
         }
 
         // Character Profile Selector (for all logged-in users)
@@ -251,7 +277,7 @@ function updateAuthUI() {
                 }
             });
 
-            controls.insertBefore(charSelect, userDisplay);
+            controls.insertBefore(charSelect, authBtn);
 
             // Update username display to include character
             userDisplay.textContent = currentUser.username + ' - ' + currentChar + (currentUser.role === 'admin' ? ' (Admin)' : '');
@@ -355,28 +381,22 @@ function initWiki() {
 }
 
 function renderNavigation() {
-    // Clear existing navs
-    const core = document.getElementById('nav-core');
-    const player = document.getElementById('nav-player');
-    const world = document.getElementById('nav-world');
+    // Clear existing nav
+    const navList = document.getElementById('nav-categories');
+    if (!navList) return;
 
-    if (core) core.innerHTML = '';
-    if (player) player.innerHTML = '';
-    if (world) world.innerHTML = '';
+    navList.innerHTML = '';
 
     localWikiData.categories.forEach(category => {
-        const navList = document.getElementById(`nav-${category.section}`);
-        if (navList) {
-            const li = document.createElement('li');
-            const a = document.createElement('a');
-            a.href = `index.html#${category.id}`;
-            a.textContent = category.name;
-            a.addEventListener('click', () => {
-                if (window.innerWidth <= 768) toggleSidebar();
-            });
-            li.appendChild(a);
-            navList.appendChild(li);
-        }
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = `index.html?category=${category.id}`;
+        a.textContent = category.name;
+        a.addEventListener('click', () => {
+            if (window.innerWidth <= 768) toggleSidebar();
+        });
+        li.appendChild(a);
+        navList.appendChild(li);
     });
 }
 
@@ -385,6 +405,56 @@ const filterCategoryId = urlParams.get('category');
 
 function renderHome(container) {
     container.innerHTML = '';
+
+    // Make Hero Text Editable in Edit Mode (only show on homepage, not category pages)
+    const heroTitle = document.getElementById('heroTitle');
+    const heroSubtitle = document.getElementById('heroSubtitle');
+    const heroSection = document.querySelector('.hero');
+
+    if (heroTitle && heroSubtitle && heroSection) {
+        if (filterCategoryId) {
+            // Hide hero on category pages
+            heroSection.style.display = 'none';
+        } else {
+            // Show hero on homepage
+            heroSection.style.display = '';
+
+            // Load saved hero text from localStorage
+            const savedHeroTitle = localStorage.getItem('heroTitle');
+            const savedHeroSubtitle = localStorage.getItem('heroSubtitle');
+
+            if (savedHeroTitle) heroTitle.textContent = savedHeroTitle;
+            if (savedHeroSubtitle) heroSubtitle.textContent = savedHeroSubtitle;
+
+            if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                heroTitle.contentEditable = 'true';
+                heroTitle.className = 'inline-editable';
+                heroTitle.dataset.field = 'heroTitle';
+                heroTitle.dataset.original = heroTitle.textContent;
+
+                heroSubtitle.contentEditable = 'true';
+                heroSubtitle.className = 'inline-editable';
+                heroSubtitle.dataset.field = 'heroSubtitle';
+                heroSubtitle.dataset.original = heroSubtitle.textContent;
+
+                // Track changes
+                [heroTitle, heroSubtitle].forEach(el => {
+                    el.addEventListener('input', () => {
+                        if (el.textContent !== el.dataset.original) {
+                            el.classList.add('changed');
+                        } else {
+                            el.classList.remove('changed');
+                        }
+                    });
+                });
+            } else {
+                heroTitle.contentEditable = 'false';
+                heroTitle.className = '';
+                heroSubtitle.contentEditable = 'false';
+                heroSubtitle.className = '';
+            }
+        }
+    }
 
     // If filtering, add a Back button
     if (filterCategoryId) {
@@ -402,31 +472,14 @@ function renderHome(container) {
             const adminBar = document.createElement('div');
             adminBar.className = 'admin-action-bar';
 
-            const saveBtn = document.createElement('button');
-            saveBtn.textContent = 'SAVE CHANGES';
-            saveBtn.className = 'btn-primary';
-            saveBtn.style.cssText = 'width:auto; background-color: #4CAF50;';
-            saveBtn.onclick = saveGlobalChanges;
-
-            // adminBar.appendChild(resetBtn); // Removed as per request
-
             const addBtn = document.createElement('button');
             addBtn.textContent = '+ Add Category';
             addBtn.className = 'btn-primary';
-            addBtn.style.cssText = 'width:auto; margin-left:10px;';
+            addBtn.style.cssText = 'width:auto;';
             addBtn.onclick = () => {
                 console.log('Add Category Button Clicked');
                 addCategory();
             };
-
-            adminBar.appendChild(saveBtn);
-
-            const downloadBtn = document.createElement('button');
-            downloadBtn.textContent = '⬇️ Download Changes';
-            downloadBtn.className = 'btn-primary';
-            downloadBtn.style.cssText = 'width:auto; margin-left:10px; background-color: #2196F3;';
-            downloadBtn.onclick = downloadChanges;
-            adminBar.appendChild(downloadBtn);
 
             adminBar.appendChild(addBtn);
             container.appendChild(adminBar);
@@ -501,74 +554,42 @@ function renderHome(container) {
             const headerWrapper = document.createElement('div');
             headerWrapper.className = 'category-header-wrapper';
 
-            // MAKE HEADER CLICKABLE
+            // MAKE HEADER CLICKABLE (or editable in Edit Mode)
             const h2 = document.createElement('h2');
 
-            // Create link for category page
-            const catLink = document.createElement('a');
-            catLink.href = `index.html?category=${category.id}`;
-            catLink.textContent = category.name;
-            catLink.style.cssText = 'color: inherit; text-decoration: none; cursor: pointer;';
-            catLink.onmouseover = () => catLink.style.color = 'var(--accent-blue)';
-            catLink.onmouseout = () => catLink.style.color = 'inherit';
+            if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                // Inline editable category name
+                const catNameSpan = document.createElement('span');
+                catNameSpan.className = 'inline-editable';
+                catNameSpan.contentEditable = 'true';
+                catNameSpan.textContent = category.name;
+                catNameSpan.dataset.catIndex = catIndex;
+                catNameSpan.dataset.field = 'name';
+                catNameSpan.dataset.original = category.name;
 
-            h2.appendChild(catLink);
+                catNameSpan.addEventListener('input', () => {
+                    if (catNameSpan.textContent !== catNameSpan.dataset.original) {
+                        catNameSpan.classList.add('changed');
+                    } else {
+                        catNameSpan.classList.remove('changed');
+                    }
+                });
+
+                h2.appendChild(catNameSpan);
+            } else {
+                // Create link for category page (normal view)
+                const catLink = document.createElement('a');
+                catLink.href = `index.html?category=${category.id}`;
+                catLink.textContent = category.name;
+                catLink.style.cssText = 'color: inherit; text-decoration: none; cursor: pointer;';
+                catLink.onmouseover = () => catLink.style.color = 'var(--accent-blue)';
+                catLink.onmouseout = () => catLink.style.color = 'inherit';
+                h2.appendChild(catLink);
+            }
+
             headerWrapper.appendChild(h2);
 
             if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                // Show Admin Controls ONLY if we are on a specific Category Page (Filtered View)
-                if (filterCategoryId) {
-                    const catActions = document.createElement('div');
-                    catActions.className = 'item-actions-mini';
-                    catActions.style.marginTop = '10px';
-                    catActions.style.display = 'flex';
-                    catActions.style.gap = '10px';
-
-                    const renameBtn = document.createElement('button');
-                    renameBtn.textContent = 'Rename Category';
-                    renameBtn.className = 'btn-back';
-                    renameBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: var(--accent-blue); width: auto;';
-                    renameBtn.onclick = () => renameCategory(catIndex);
-
-                    const delBtn = document.createElement('button');
-                    delBtn.textContent = 'Delete Category';
-                    delBtn.className = 'btn-back';
-                    delBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: #ff5252; width: auto;';
-                    // 2-Step Verification Logic
-                    delBtn.dataset.confirmState = 'idle';
-
-                    delBtn.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        if (delBtn.dataset.confirmState === 'idle') {
-                            // FIRST CLICK: ARM
-                            delBtn.dataset.confirmState = 'confirm';
-                            delBtn.textContent = 'Confirm Delete?';
-                            delBtn.style.transform = 'scale(1.1)';
-                            delBtn.style.backgroundColor = '#d32f2f'; // Darker red
-
-                            // Auto-reset after 3 seconds
-                            setTimeout(() => {
-                                if (delBtn.dataset.confirmState === 'confirm') {
-                                    delBtn.dataset.confirmState = 'idle';
-                                    delBtn.textContent = 'Delete Category';
-                                    delBtn.style.transform = 'scale(1)';
-                                    delBtn.style.backgroundColor = '#ff5252';
-                                }
-                            }, 3000);
-                        } else if (delBtn.dataset.confirmState === 'confirm') {
-                            // SECOND CLICK: EXECUTE
-                            deleteCategory(catIndex);
-                            // Redirect handled inside deleteCategory or here
-                            window.location.href = 'index.html';
-                        }
-                    });
-
-                    catActions.appendChild(renameBtn);
-                    catActions.appendChild(delBtn);
-                    headerWrapper.appendChild(catActions);
-                }
             }
 
             catGroup.appendChild(headerWrapper);
@@ -577,19 +598,29 @@ function renderHome(container) {
             if (filterCategoryId) {
                 const descP = document.createElement('p');
                 descP.className = 'category-description';
-                descP.textContent = category.description || 'No description.';
                 descP.style.cssText = 'color: var(--text-secondary); margin-bottom: 20px; font-style: italic;';
-                catGroup.appendChild(descP);
 
-                // Admin: Edit Description Button
                 if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                    const editDescBtn = document.createElement('button');
-                    editDescBtn.textContent = '✏️ Edit Description';
-                    editDescBtn.className = 'btn-back';
-                    editDescBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: var(--accent-blue); width: auto; margin-bottom: 20px;';
-                    editDescBtn.onclick = () => editCategoryDescription(catIndex);
-                    catGroup.insertBefore(editDescBtn, descP.nextSibling);
+                    // Inline editable description
+                    descP.className = 'category-description inline-editable';
+                    descP.contentEditable = 'true';
+                    descP.textContent = category.description || 'Click to add description...';
+                    descP.dataset.catIndex = catIndex;
+                    descP.dataset.field = 'description';
+                    descP.dataset.original = category.description || '';
+
+                    descP.addEventListener('input', () => {
+                        if (descP.textContent !== descP.dataset.original) {
+                            descP.classList.add('changed');
+                        } else {
+                            descP.classList.remove('changed');
+                        }
+                    });
+                } else {
+                    descP.textContent = category.description || 'No description.';
                 }
+
+                catGroup.appendChild(descP);
             }
 
             const list = document.createElement('ul');
@@ -700,9 +731,214 @@ function renderHome(container) {
         errorMsg.textContent = 'Category not found.';
         container.appendChild(errorMsg);
     }
+
+    // Add Delete Category button at bottom (category page only, Edit Mode only)
+    if (filterCategoryId && currentUser && currentUser.role === 'admin' && isEditMode) {
+        const catIndex = localWikiData.categories.findIndex(c => c.id === filterCategoryId);
+        if (catIndex !== -1) {
+            const deleteSection = document.createElement('div');
+            deleteSection.style.cssText = 'margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border-color);';
+
+            const delBtn = document.createElement('button');
+            delBtn.textContent = 'Delete Category';
+            delBtn.className = 'btn-back btn-danger';
+            delBtn.style.cssText = 'padding: 10px 20px; font-size: 0.9rem; width: auto; margin-top: 0;';
+            delBtn.dataset.confirmState = 'idle';
+
+            delBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (delBtn.dataset.confirmState === 'idle') {
+                    delBtn.dataset.confirmState = 'confirm';
+                    delBtn.textContent = 'Confirm Delete?';
+                    delBtn.style.transform = 'scale(1.05)';
+                    setTimeout(() => {
+                        if (delBtn.dataset.confirmState === 'confirm') {
+                            delBtn.dataset.confirmState = 'idle';
+                            delBtn.textContent = 'Delete Category';
+                            delBtn.style.transform = 'scale(1)';
+                        }
+                    }, 3000);
+                } else if (delBtn.dataset.confirmState === 'confirm') {
+                    deleteCategory(catIndex);
+                    window.location.href = 'index.html';
+                }
+            });
+
+            deleteSection.appendChild(delBtn);
+            container.appendChild(deleteSection);
+        }
+    }
+
+    // Add floating Save All and Download buttons (Edit Mode only)
+    const existingSaveAllBtn = document.getElementById('saveAllBtn');
+    if (existingSaveAllBtn) existingSaveAllBtn.remove();
+    const existingDownloadBtn = document.getElementById('floatingDownloadBtn');
+    if (existingDownloadBtn) existingDownloadBtn.remove();
+
+    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+        const saveAllBtn = document.createElement('button');
+        saveAllBtn.id = 'saveAllBtn';
+        saveAllBtn.className = 'save-all-btn';
+        saveAllBtn.textContent = '💾 Save All Changes';
+        saveAllBtn.addEventListener('click', saveAllChanges);
+        document.body.appendChild(saveAllBtn);
+
+        // Add Download button next to Save All
+        const existingDownloadBtn = document.getElementById('floatingDownloadBtn');
+        if (existingDownloadBtn) existingDownloadBtn.remove();
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.id = 'floatingDownloadBtn';
+        downloadBtn.className = 'save-all-btn';
+        downloadBtn.style.cssText = 'right: 230px; background: linear-gradient(135deg, #2196F3, #1976D2);';
+        downloadBtn.textContent = '⬇️ Download';
+        downloadBtn.addEventListener('click', downloadChanges);
+        document.body.appendChild(downloadBtn);
+    }
 }
 
 // --- ADMIN EDIT ACTIONS ---
+
+// Save All Inline Changes
+function saveAllChanges() {
+    let changesMade = 0;
+
+    // Save Hero Text
+    const heroTitle = document.getElementById('heroTitle');
+    const heroSubtitle = document.getElementById('heroSubtitle');
+
+    if (heroTitle && heroTitle.dataset.original !== undefined) {
+        const newTitle = heroTitle.textContent.trim();
+        if (newTitle !== heroTitle.dataset.original) {
+            localStorage.setItem('heroTitle', newTitle);
+            heroTitle.dataset.original = newTitle;
+            changesMade++;
+        }
+    }
+
+    if (heroSubtitle && heroSubtitle.dataset.original !== undefined) {
+        const newSubtitle = heroSubtitle.textContent.trim();
+        if (newSubtitle !== heroSubtitle.dataset.original) {
+            localStorage.setItem('heroSubtitle', newSubtitle);
+            heroSubtitle.dataset.original = newSubtitle;
+            changesMade++;
+        }
+    }
+
+    // Collect all inline-editable elements with changes (categories)
+    document.querySelectorAll('.inline-editable').forEach(el => {
+        const catIndex = parseInt(el.dataset.catIndex);
+        const field = el.dataset.field;
+        const newValue = el.tagName === 'INPUT' ? el.value.trim() : el.textContent.trim();
+        const original = el.dataset.original;
+
+        if (newValue !== original && !isNaN(catIndex)) {
+            const category = localWikiData.categories[catIndex];
+            if (category) {
+                if (field === 'name') {
+                    category.name = newValue;
+                    changesMade++;
+                } else if (field === 'description') {
+                    category.description = newValue;
+                    changesMade++;
+                }
+            }
+        }
+    });
+
+    // Save Item Page Edits (if on item page)
+    const itemContainer = document.getElementById('itemDetailContainer');
+    if (itemContainer && itemContainer.dataset.itemId) {
+        const itemId = itemContainer.dataset.itemId;
+        const nameEl = document.getElementById('item-title-edit');
+        const descEl = document.getElementById('item-desc-edit');
+        const restrictedEl = document.getElementById('item-restricted-edit');
+
+        if (nameEl || descEl || restrictedEl) {
+            for (const cat of localWikiData.categories) {
+                const item = cat.items.find(i => i.id === itemId);
+                if (item) {
+                    if (nameEl && nameEl.textContent.trim() !== nameEl.dataset.original) {
+                        item.name = nameEl.textContent.trim();
+                        changesMade++;
+                    }
+                    if (descEl && descEl.innerHTML.trim() !== descEl.dataset.original) {
+                        item.description = descEl.innerHTML.trim();
+                        changesMade++;
+                    }
+                    if (restrictedEl) {
+                        const newRestricted = restrictedEl.value.split(',').map(t => t.trim()).filter(t => t);
+                        const oldRestricted = restrictedEl.dataset.original;
+                        if (restrictedEl.value !== oldRestricted) {
+                            if (newRestricted.length > 0) {
+                                item.restrictedTo = newRestricted;
+                            } else {
+                                delete item.restrictedTo;
+                            }
+                            changesMade++;
+                        }
+                    }
+
+                    // Save Hidden Infos
+                    const hiddenInfoSections = document.querySelectorAll('.hidden-info-edit-section');
+                    if (hiddenInfoSections.length > 0 || (item.hiddenInfos && item.hiddenInfos.length > 0)) {
+                        const newHiddenInfos = [];
+                        hiddenInfoSections.forEach(section => {
+                            const content = section.querySelector('.hidden-info-content').value.trim();
+                            const restrictedInput = section.querySelector('.hidden-info-restricted').value;
+                            const restricted = restrictedInput.split(',').map(t => t.trim()).filter(t => t);
+
+                            if (content) {
+                                newHiddenInfos.push({
+                                    content: content,
+                                    restrictedTo: restricted
+                                });
+                            }
+                        });
+                        item.hiddenInfos = newHiddenInfos;
+                        changesMade++;
+                    }
+
+                    break;
+                }
+            }
+        }
+    }
+
+    if (changesMade > 0) {
+        persistData();
+        renderNavigation();
+
+        // Visual feedback
+        const saveBtn = document.getElementById('saveAllBtn');
+        if (saveBtn) {
+            const originalText = saveBtn.textContent;
+            saveBtn.textContent = `✅ Saved ${changesMade} change(s)!`;
+            saveBtn.style.background = 'linear-gradient(135deg, #2196F3, #1976D2)';
+
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+                saveBtn.style.background = 'linear-gradient(135deg, #4CAF50, #45a049)';
+
+                // Remove 'changed' class from all elements
+                document.querySelectorAll('.inline-editable.changed').forEach(el => {
+                    el.classList.remove('changed');
+                    el.dataset.original = el.textContent.trim();
+                });
+            }, 2000);
+        }
+    } else {
+        // No changes to save
+        const saveBtn = document.getElementById('saveAllBtn');
+        if (saveBtn) {
+            const originalText = saveBtn.textContent;
+            saveBtn.textContent = 'No changes to save';
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+            }, 1500);
+        }
+    }
+}
 
 function downloadChanges() {
     // Construct the data.js file content
@@ -971,12 +1207,21 @@ function renderItemDetail(container) {
                     <input type="text" id="edit-name" value="${foundItem.name}">
                 </div>
                 <div class="form-group">
-                    <label>Description</label>
+                    <label>Description (Visible to All)</label>
                     <textarea id="edit-desc" rows="10" style="width:100%; padding:10px; background:var(--bg-dark); color:white; border:1px solid var(--border-color);">${foundItem.description}</textarea>
                 </div>
                 <div class="form-group">
-                    <label>Restrict to Employees (Usernames, comma separated)</label>
-                    <input type="text" id="edit-restricted" value="${restrictedVal}" placeholder="e.g. Tamara, Ale">
+                    <label>Restrict Entire Item to Characters (comma separated)</label>
+                    <input type="text" id="edit-restricted" value="${restrictedVal}" placeholder="Leave empty for no restriction">
+                </div>
+                
+                <hr style="border-color: var(--border-color); margin: 20px 0;">
+                
+                <div class="form-group">
+                    <label style="font-size: 1.1em; color: var(--accent-blue);">🔒 Hidden Information Sections</label>
+                    <p style="font-size: 0.85em; color: var(--text-secondary); margin-bottom: 15px;">Add secret information visible only to specific characters.</p>
+                    <div id="hidden-infos-container"></div>
+                    <button type="button" id="add-hidden-info-btn" class="btn-primary" style="width: auto; padding: 8px 15px; margin-top: 10px; background-color: #9c27b0;">+ Add Hidden Info</button>
                 </div>
                 
                 <div class="actions" id="edit-actions-container" style="display: flex; gap: 10px; align-items: center;">
@@ -985,6 +1230,49 @@ function renderItemDetail(container) {
             </article>
         `;
         container.innerHTML = contentHtml;
+
+        // Render existing hidden infos
+        const hiddenInfosContainer = document.getElementById('hidden-infos-container');
+        const hiddenInfos = foundItem.hiddenInfos || [];
+
+        function renderHiddenInfosEditor() {
+            hiddenInfosContainer.innerHTML = '';
+            hiddenInfos.forEach((hi, index) => {
+                const div = document.createElement('div');
+                div.style.cssText = 'background: var(--bg-dark); padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid var(--border-color);';
+                div.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="font-weight: bold; color: var(--accent-blue);">Hidden Info #${index + 1}</span>
+                        <button type="button" class="delete-hidden-info-btn" data-index="${index}" style="background: #ff5252; border: none; color: white; padding: 4px 10px; border-radius: 4px; cursor: pointer;">Delete</button>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label style="font-size: 0.85em;">Content:</label>
+                        <textarea class="hidden-info-content" data-index="${index}" rows="3" style="width:100%; padding:8px; background:var(--bg-card); color:white; border:1px solid var(--border-color); margin-top:5px;">${hi.content}</textarea>
+                    </div>
+                    <div>
+                        <label style="font-size: 0.85em;">Visible to Characters (comma separated):</label>
+                        <input type="text" class="hidden-info-restricted" data-index="${index}" value="${hi.restrictedTo ? hi.restrictedTo.join(', ') : ''}" style="width:100%; padding:8px; background:var(--bg-card); color:white; border:1px solid var(--border-color); margin-top:5px;" placeholder="e.g. Aria, Zephyr">
+                    </div>
+                `;
+                hiddenInfosContainer.appendChild(div);
+            });
+
+            // Attach delete handlers
+            document.querySelectorAll('.delete-hidden-info-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    hiddenInfos.splice(parseInt(btn.dataset.index), 1);
+                    renderHiddenInfosEditor();
+                });
+            });
+        }
+        renderHiddenInfosEditor();
+
+        // Add Hidden Info button
+        document.getElementById('add-hidden-info-btn').addEventListener('click', () => {
+            hiddenInfos.push({ content: '', restrictedTo: [] });
+            renderHiddenInfosEditor();
+        });
+
 
         const actionsContainer = document.getElementById('edit-actions-container');
         actionsContainer.innerHTML = ''; // CLEAR ANY OLD BUTTONS
@@ -1069,29 +1357,231 @@ function renderItemDetail(container) {
         actionsContainer.appendChild(cancelBtn);
         actionsContainer.appendChild(deleteBtn);
     } else {
-        // RENDER IN VIEW MODE
+        // RENDER IN VIEW MODE (with inline editing if admin in Edit Mode)
+        const isInlineEdit = currentUser && currentUser.role === 'admin' && isEditMode;
 
-        contentHtml = `
-            <div class="breadcrumb">
-                <a href="index.html">Home</a> &gt; <a href="index.html#${foundCategory.id}">${foundCategory.name}</a> &gt; ${foundItem.name}
-            </div>
-            <article class="item-detail">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start">
-                    <h1>${foundItem.name} ${currentUser && currentUser.role === 'admin' && isEditMode ? '<span class="admin-edit-badge">EDITABLE</span>' : ''}</h1>
+        // Build hidden info HTML for authorized characters
+        let hiddenInfoHtml = '';
+        const selectedChar = sessionStorage.getItem('selectedCharacter');
+        if (foundItem.hiddenInfos && foundItem.hiddenInfos.length > 0) {
+            foundItem.hiddenInfos.forEach((hi, index) => {
+                // Check if current character can see this hidden info
+                const canSee = (currentUser && currentUser.role === 'admin') ||
+                    (selectedChar && hi.restrictedTo && hi.restrictedTo.map(c => c.toLowerCase()).includes(selectedChar.toLowerCase()));
+
+                if (canSee) {
+                    hiddenInfoHtml += `
+                        <div style="background: linear-gradient(135deg, rgba(156, 39, 176, 0.2), rgba(76, 175, 80, 0.1)); padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 3px solid #9c27b0;">
+                            <p>${hi.content}</p>
+                            ${currentUser && currentUser.role === 'admin' ? `<div style="font-size: 0.75em; color: var(--text-secondary); margin-top: 8px;">Visible to: ${hi.restrictedTo.join(', ') || 'All'}</div>` : ''}
+                        </div>
+                    `;
+                }
+            });
+        }
+
+        if (isInlineEdit) {
+            // Inline Editing View for Admins
+            const restrictedVal = foundItem.restrictedTo ? foundItem.restrictedTo.join(', ') : '';
+
+            // Build editable hidden info sections
+            let hiddenInfoEditHtml = '';
+            const hiddenInfos = foundItem.hiddenInfos || [];
+            hiddenInfos.forEach((hi, index) => {
+                hiddenInfoEditHtml += `
+                    <div class="hidden-info-edit-section" data-index="${index}" style="background: linear-gradient(135deg, rgba(156, 39, 176, 0.15), rgba(156, 39, 176, 0.05)); padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid #9c27b0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span style="color: #9c27b0; font-weight: 600;">Hidden Info #${index + 1}</span>
+                            <button class="delete-hidden-info-btn btn-danger" data-index="${index}" style="border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Delete</button>
+                        </div>
+                        <textarea class="hidden-info-content" data-index="${index}" style="width: 100%; min-height: 60px; padding: 10px; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 4px; resize: vertical;">${hi.content}</textarea>
+                        <div style="margin-top: 10px;">
+                            <label style="color: var(--text-secondary); font-size: 0.85em;">Visible to Characters (comma separated):</label>
+                            <input type="text" class="hidden-info-restricted" data-index="${index}" value="${hi.restrictedTo ? hi.restrictedTo.join(', ') : ''}" style="width: 100%; padding: 8px; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 4px; margin-top: 5px;" placeholder="Leave empty for all">
+                        </div>
+                    </div>
+                `;
+            });
+
+            contentHtml = `
+                <div class="breadcrumb">
+                    <a href="index.html">Home</a> &gt; <a href="index.html?category=${foundCategory.id}">${foundCategory.name}</a> &gt; <span class="inline-editable" id="item-name-edit" contenteditable="true" data-field="name" data-original="${foundItem.name}">${foundItem.name}</span>
                 </div>
-                
-                <div class="item-description">
-                    <p>${foundItem.description}</p>
-                    ${currentUser && currentUser.role === 'admin' && isEditMode && foundItem.restrictedTo ? `<p style="color:#ff5252; margin-top:10px"><strong>Visibility:</strong> Restricted to: ${foundItem.restrictedTo.length > 0 ? foundItem.restrictedTo.join(', ') : 'Admin Only'}</p>` : ''}
+                <article class="item-detail">
+                    <h1 class="inline-editable" id="item-title-edit" contenteditable="true" data-field="name" data-original="${foundItem.name}">${foundItem.name}</h1>
+                    
+                    <div class="item-description">
+                        <div class="rich-text-toolbar" id="descToolbar">
+                            <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+                            <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+                            <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+                            <span class="toolbar-divider"></span>
+                            <button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+                            <span class="toolbar-divider"></span>
+                            <select id="textColorSelect" title="Text Color">
+                                <option value="">Color</option>
+                                <option value="#00d4aa">Primary</option>
+                                <option value="#9c27b0">Purple</option>
+                                <option value="#f44336">Red</option>
+                                <option value="#ff9800">Orange</option>
+                                <option value="#4CAF50">Green</option>
+                                <option value="#2196F3">Blue</option>
+                                <option value="#ffffff">White</option>
+                            </select>
+                            <span class="toolbar-divider"></span>
+                            <button type="button" data-cmd="removeFormat" title="Clear Formatting">✕</button>
+                        </div>
+                        <div class="inline-editable rich-text-content" id="item-desc-edit" contenteditable="true" data-field="description" data-original="${foundItem.description}" style="min-height: 150px;">${foundItem.description}</div>
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: var(--bg-dark); border-radius: 8px;">
+                        <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Restrict to Characters (comma separated):</label>
+                        <input type="text" id="item-restricted-edit" class="inline-editable" value="${restrictedVal}" data-field="restricted" data-original="${restrictedVal}" style="width: 100%; padding: 10px; background: var(--bg-card); color: white; border: 1px solid var(--border-color);" placeholder="Leave empty for no restriction">
+                    </div>
+                    
+                    <div style="margin-top: 30px;">
+                        <div id="hidden-info-container">
+                            ${hiddenInfoEditHtml || '<p style="color: var(--text-secondary); font-style: italic;">No hidden information yet.</p>'}
+                        </div>
+                        <button id="add-hidden-info-btn" class="btn-primary" style="margin-top: 15px; background-color: #9c27b0; width: auto;">+ Add Hidden Info</button>
+                    </div>
+                    
+                    <div class="actions" id="item-actions-container" style="margin-top: 30px;">
+                        <button id="detail-back-btn" class="btn-back">Go Back</button>
+                        <button id="delete-item-btn" class="btn-back btn-danger" style="margin-left: 20px; margin-top: 0;">Delete Item</button>
+                    </div>
+                </article>
+            `;
+            container.innerHTML = contentHtml;
+            container.dataset.itemId = itemId;
+
+            // Setup inline edit change tracking
+            document.querySelectorAll('#item-title-edit, #item-desc-edit, #item-restricted-edit').forEach(el => {
+                el.addEventListener('input', () => {
+                    const original = el.dataset.original || '';
+                    const current = el.tagName === 'INPUT' ? el.value : el.textContent;
+                    if (current !== original) {
+                        el.classList.add('changed');
+                    } else {
+                        el.classList.remove('changed');
+                    }
+                });
+            });
+
+            // Sync title and breadcrumb name
+            document.getElementById('item-title-edit').addEventListener('input', (e) => {
+                document.getElementById('item-name-edit').textContent = e.target.textContent;
+            });
+
+            // Rich Text Toolbar Handlers
+            document.querySelectorAll('#descToolbar button[data-cmd]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const cmd = btn.dataset.cmd;
+                    document.execCommand(cmd, false, null);
+                    document.getElementById('item-desc-edit').focus();
+                });
+            });
+
+            // Color picker handler
+            document.getElementById('textColorSelect').addEventListener('change', (e) => {
+                if (e.target.value) {
+                    document.execCommand('foreColor', false, e.target.value);
+                    document.getElementById('item-desc-edit').focus();
+                    e.target.value = ''; // Reset to default
+                }
+            });
+
+            // Add Hidden Info button
+            document.getElementById('add-hidden-info-btn').addEventListener('click', () => {
+                const container = document.getElementById('hidden-info-container');
+                const currentCount = container.querySelectorAll('.hidden-info-edit-section').length;
+
+                // Remove "no hidden info" message if present
+                const emptyMsg = container.querySelector('p');
+                if (emptyMsg) emptyMsg.remove();
+
+                const newSection = document.createElement('div');
+                newSection.className = 'hidden-info-edit-section';
+                newSection.dataset.index = currentCount;
+                newSection.style.cssText = 'background: linear-gradient(135deg, rgba(156, 39, 176, 0.15), rgba(156, 39, 176, 0.05)); padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid #9c27b0;';
+                newSection.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="color: #9c27b0; font-weight: 600;">Hidden Info #${currentCount + 1}</span>
+                        <button class="delete-hidden-info-btn btn-danger" data-index="${currentCount}" style="border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Delete</button>
+                    </div>
+                    <textarea class="hidden-info-content" data-index="${currentCount}" style="width: 100%; min-height: 60px; padding: 10px; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 4px; resize: vertical;" placeholder="Enter hidden information content..."></textarea>
+                    <div style="margin-top: 10px;">
+                        <label style="color: var(--text-secondary); font-size: 0.85em;">Visible to Characters (comma separated):</label>
+                        <input type="text" class="hidden-info-restricted" data-index="${currentCount}" style="width: 100%; padding: 8px; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 4px; margin-top: 5px;" placeholder="Leave empty for all">
+                    </div>
+                `;
+                container.appendChild(newSection);
+
+                // Add delete handler for new section
+                newSection.querySelector('.delete-hidden-info-btn').addEventListener('click', function () {
+                    newSection.remove();
+                });
+            });
+
+            // Delete Hidden Info buttons
+            document.querySelectorAll('.delete-hidden-info-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    this.closest('.hidden-info-edit-section').remove();
+                });
+            });
+
+            // Delete button with 2-step
+            const deleteBtn = document.getElementById('delete-item-btn');
+            deleteBtn.dataset.confirmState = 'idle';
+            deleteBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (deleteBtn.dataset.confirmState === 'idle') {
+                    deleteBtn.dataset.confirmState = 'confirm';
+                    deleteBtn.textContent = 'Confirm Delete?';
+                    deleteBtn.style.backgroundColor = '#d32f2f';
+                    setTimeout(() => {
+                        if (deleteBtn.dataset.confirmState === 'confirm') {
+                            deleteBtn.dataset.confirmState = 'idle';
+                            deleteBtn.textContent = 'Delete Item';
+                            deleteBtn.style.backgroundColor = '#ff5252';
+                        }
+                    }, 3000);
+                } else if (deleteBtn.dataset.confirmState === 'confirm') {
+                    // Execute delete
+                    for (const cat of localWikiData.categories) {
+                        const idx = cat.items.findIndex(i => i.id === itemId);
+                        if (idx !== -1) {
+                            cat.items.splice(idx, 1);
+                            persistData();
+                            window.location.href = 'index.html';
+                            return;
+                        }
+                    }
+                }
+            });
+
+        } else {
+            // Normal View Mode (non-admin or not in edit mode)
+            contentHtml = `
+                <div class="breadcrumb">
+                    <a href="index.html">Home</a> &gt; <a href="index.html#${foundCategory.id}">${foundCategory.name}</a> &gt; ${foundItem.name}
                 </div>
-                
-                <div class="actions" id="item-actions-container">
-                    <button id="detail-back-btn" class="btn-back">Go Back</button>
-                    <!-- Admin buttons added via JS -->
-                </div>
-            </article>
-        `;
-        container.innerHTML = contentHtml;
+                <article class="item-detail">
+                    <h1>${foundItem.name}</h1>
+                    
+                    <div class="item-description">
+                        <p>${foundItem.description}</p>
+                        ${hiddenInfoHtml}
+                    </div>
+                    
+                    <div class="actions" id="item-actions-container">
+                        <button id="detail-back-btn" class="btn-back">Go Back</button>
+                    </div>
+                </article>
+            `;
+            container.innerHTML = contentHtml;
+        }
 
         const backBtn = document.getElementById('detail-back-btn');
         backBtn.onclick = () => {
@@ -1101,21 +1591,32 @@ function renderItemDetail(container) {
                 window.location.href = 'index.html';
             }
         };
-
-        if (currentUser && currentUser.role === 'admin' && isEditMode) {
-            const actionsContainer = document.getElementById('item-actions-container');
-
-            const editBtn = document.createElement('button');
-            editBtn.className = 'btn-primary';
-            editBtn.style.cssText = 'width:auto; margin-left: 20px; background-color: #ff5252;';
-            editBtn.textContent = 'Edit Content';
-            editBtn.onclick = () => toggleItemEdit(true);
-
-            actionsContainer.appendChild(editBtn);
-        }
     }
 
     document.title = `${foundItem.name} - RPG Game Wiki`;
+
+    // Add floating Save All button for item pages (Edit Mode only)
+    const existingSaveAllBtn = document.getElementById('saveAllBtn');
+    if (existingSaveAllBtn) existingSaveAllBtn.remove();
+    const existingDownloadBtn = document.getElementById('floatingDownloadBtn');
+    if (existingDownloadBtn) existingDownloadBtn.remove();
+
+    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+        const saveAllBtn = document.createElement('button');
+        saveAllBtn.id = 'saveAllBtn';
+        saveAllBtn.className = 'save-all-btn';
+        saveAllBtn.textContent = '💾 Save All Changes';
+        saveAllBtn.addEventListener('click', saveAllChanges);
+        document.body.appendChild(saveAllBtn);
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.id = 'floatingDownloadBtn';
+        downloadBtn.className = 'save-all-btn';
+        downloadBtn.style.cssText = 'right: 230px; background: linear-gradient(135deg, #2196F3, #1976D2);';
+        downloadBtn.textContent = '⬇️ Download';
+        downloadBtn.addEventListener('click', downloadChanges);
+        document.body.appendChild(downloadBtn);
+    }
 }
 
 function toggleItemEdit(isEditing) {
@@ -1133,6 +1634,19 @@ function saveItemEdit(itemId) {
     const desc = document.getElementById('edit-desc').value;
     const restricted = document.getElementById('edit-restricted').value.split(',').map(t => t.trim()).filter(t => t);
 
+    // Collect hidden infos from form
+    const hiddenInfos = [];
+    document.querySelectorAll('.hidden-info-content').forEach(textarea => {
+        const index = parseInt(textarea.dataset.index);
+        const content = textarea.value.trim();
+        const restrictedInput = document.querySelector(`.hidden-info-restricted[data-index="${index}"]`);
+        const restrictedTo = restrictedInput ? restrictedInput.value.split(',').map(t => t.trim()).filter(t => t) : [];
+
+        if (content) {
+            hiddenInfos.push({ content, restrictedTo });
+        }
+    });
+
     // Update LOCAL data
     for (const cat of localWikiData.categories) {
         const item = cat.items.find(i => i.id === itemId);
@@ -1144,6 +1658,14 @@ function saveItemEdit(itemId) {
             } else {
                 delete item.restrictedTo;
             }
+
+            // Save hidden infos
+            if (hiddenInfos.length > 0) {
+                item.hiddenInfos = hiddenInfos;
+            } else {
+                delete item.hiddenInfos;
+            }
+
             // Auto-persist content edits too for smoother experience
             persistData();
             break;

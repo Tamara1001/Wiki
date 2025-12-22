@@ -14,315 +14,82 @@ const users = [
 const wikiData = {
     "categories": [
         {
-            "id": "stats",
-            "name": "Mantecas",
-            "section": "core",
-            "items": [
-                {
-                    "id": "str",
-                    "name": "Fuerzaa",
-                    "description": "Measures bodily power, athletic training, and the extent to which you can exert raw physical force.",
-                    "tags": [
-                        "Attribute",
-                        "Core"
-                    ]
-                },
-                {
-                    "id": "dex",
-                    "name": "Dexterity",
-                    "description": "Measures agility, reflexes, and balance.",
-                    "tags": [
-                        "Attribute",
-                        "Core"
-                    ]
-                },
-                {
-                    "id": "con",
-                    "name": "Constitution",
-                    "description": "Measures health, stamina, and vital force.",
-                    "tags": [
-                        "Attribute",
-                        "Core"
-                    ]
-                },
-                {
-                    "id": "int",
-                    "name": "Intelligence",
-                    "description": "Measures mental acuity, accuracy of recall, and the ability to reason.",
-                    "tags": [
-                        "Attribute",
-                        "Core"
-                    ]
-                },
-                {
-                    "id": "wis",
-                    "name": "Wisdom",
-                    "description": "Measures how attuned you are to the world around you and represents perceptiveness and intuition.",
-                    "tags": [
-                        "Attribute",
-                        "Core"
-                    ]
-                },
-                {
-                    "id": "cha",
-                    "name": "Charisma",
-                    "description": "Measures your ability to interact effectively with others. It includes such factors as confidence and eloquence.",
-                    "tags": [
-                        "Attribute",
-                        "Core"
-                    ]
-                }
-            ]
-        },
-        {
-            "id": "classes",
-            "name": "Classes",
-            "section": "player",
-            "items": [
-                {
-                    "id": "barbarian",
-                    "name": "Barbarian",
-                    "description": "A fierce warrior of primitive background who can enter a battle rage.",
-                    "tags": [
-                        "Melee",
-                        "Tank"
-                    ]
-                },
-                {
-                    "id": "bard",
-                    "name": "Bard",
-                    "description": "An inspiring magician whose power echoes the music of creation.",
-                    "tags": [
-                        "Support",
-                        "Caster"
-                    ]
-                },
-                {
-                    "id": "cleric",
-                    "name": "Cleric",
-                    "description": "A priestly champion who wields divine magic in service of a higher power.",
-                    "tags": [
-                        "Healer",
-                        "Caster"
-                    ]
-                },
-                {
-                    "id": "druid",
-                    "name": "Druid",
-                    "description": "A priest of the Old Faith, wielding the powers of nature and moonlight.",
-                    "tags": [
-                        "Caster",
-                        "Shapeshifter"
-                    ]
-                },
-                {
-                    "id": "fighter",
-                    "name": "Fighter",
-                    "description": "A master of martial combat, skilled with a variety of weapons and armor.",
-                    "tags": [
-                        "Melee",
-                        "Ranged"
-                    ]
-                },
-                {
-                    "id": "paladin",
-                    "name": "Paladin",
-                    "description": "A holy warrior bound to a sacred oath.",
-                    "tags": [
-                        "Melee",
-                        "Support"
-                    ]
-                },
-                {
-                    "id": "ranger",
-                    "name": "Ranger",
-                    "description": "A warrior who uses martial prowess and nature magic to combat threats on the edges of civilization.",
-                    "tags": [
-                        "Ranged",
-                        "Melee"
-                    ]
-                },
-                {
-                    "id": "rogue",
-                    "name": "Rogue",
-                    "description": "A scoundrel who uses stealth and trickery to overcome obstacles and enemies.",
-                    "tags": [
-                        "Melee",
-                        "Stealth"
-                    ]
-                },
-                {
-                    "id": "sorcerer",
-                    "name": "Sorcerer",
-                    "description": "A spellcaster who draws on inherent magic from a gift or bloodline.",
-                    "tags": [
-                        "Caster",
-                        "Damage"
-                    ]
-                },
-                {
-                    "id": "warlock",
-                    "name": "Warlock",
-                    "description": "A wielder of magic that is derived from a bargain with an extraplanar entity.",
-                    "tags": [
-                        "Caster",
-                        "Damage"
-                    ]
-                },
-                {
-                    "id": "wizard",
-                    "name": "Wizard",
-                    "description": "A scholarly magic-user capable of manipulating the structures of reality.",
-                    "tags": [
-                        "Caster",
-                        "Utility"
-                    ]
-                }
-            ]
-        },
-        {
-            "id": "races",
-            "name": "Races",
-            "section": "player",
-            "items": [
-                {
-                    "id": "human",
-                    "name": "Human",
-                    "description": "Humans are the most adaptable and ambitious people among the common races.",
-                    "tags": [
-                        "Common"
-                    ]
-                },
-                {
-                    "id": "elf",
-                    "name": "Elf",
-                    "description": "Elves are a magical people of otherworldly grace, living in the world but not entirely part of it.",
-                    "tags": [
-                        "Common",
-                        "Fey"
-                    ]
-                },
-                {
-                    "id": "dwarf",
-                    "name": "Dwarf",
-                    "description": "Bold and hardy, dwarves are known as skilled warriors, miners, and workers of stone and metal.",
-                    "tags": [
-                        "Common",
-                        "Underground"
-                    ]
-                }
-            ]
-        },
-        {
-            "id": "bestiary",
-            "name": "Bestiary",
+            "id": "new-category-1766381647143",
+            "name": "Testing",
             "section": "world",
             "items": [
                 {
-                    "id": "goblin",
-                    "name": "Goblin",
-                    "description": "Small, black-hearted, selfish humanoids that lair in caves, abandoned mines, despoiled dungeons, and other dismal settings.",
+                    "id": "new-item-1766381694140",
+                    "name": "Test de Informaciones Ocultas",
+                    "description": "Esta informacion es visible para todos!!!",
                     "tags": [
-                        "Humanoid",
-                        "CR 1/4"
+                        "New"
+                    ],
+                    "hiddenInfos": [
+                        {
+                            "content": "Esto solo puede verlo Lunaria",
+                            "restrictedTo": [
+                                "Lunaria"
+                            ]
+                        },
+                        {
+                            "content": "Esto solo puede verlo Keiko",
+                            "restrictedTo": [
+                                "Keiko"
+                            ]
+                        },
+                        {
+                            "content": "Esto pueden verlo Lunaria y Keiko",
+                            "restrictedTo": [
+                                "Lunaria",
+                                "Keiko"
+                            ]
+                        }
                     ]
                 },
                 {
-                    "id": "dragon",
-                    "name": "Dragon",
-                    "description": "Large reptilian monsters of tremendous power and intelligence.",
+                    "id": "new-item-1766381647143",
+                    "name": "Lunaria",
+                    "description": "Lunaria",
+                    "tags": [],
+                    "restrictedTo": [
+                        "Lunaria"
+                    ]
+                },
+                {
+                    "id": "new-item-1766381692884",
+                    "name": "Keiko",
+                    "description": "Keiko",
                     "tags": [
-                        "Dragon",
-                        "Epic"
+                        "New"
                     ],
                     "restrictedTo": [
-                        "Tamara"
+                        "Keiko"
                     ]
                 },
                 {
-                    "id": "skeleton",
-                    "name": "Skeleton",
-                    "description": "The animated bones of a dead humanoid or creature.",
-                    "tags": [
-                        "Undead",
-                        "CR 1/4"
-                    ]
-                }
-            ]
-        },
-        {
-            "id": "items",
-            "name": "Items & Equipment",
-            "section": "world",
-            "items": [
-                {
-                    "id": "longsword",
-                    "name": "Longsword",
-                    "description": "A versatile melee weapon.",
-                    "tags": [
-                        "Weapon",
-                        "Slashing"
-                    ]
-                },
-                {
-                    "id": "healing-potion",
-                    "name": "Potion of Healing",
-                    "description": "A magical red fluid that restores hit points.",
-                    "tags": [
-                        "Consumable",
-                        "Magic"
-                    ],
-                    "restrictedTo": [
-                        "Tamara"
-                    ]
-                },
-                {
-                    "id": "plate-armor",
-                    "name": "Plate Armor",
-                    "description": "Heavy armor consisting of shaped, interlocking metal plates.",
-                    "tags": [
-                        "Armor",
-                        "Heavy"
-                    ],
-                    "restrictedTo": []
-                }
-            ]
-        },
-        {
-            "id": "magic-spells",
-            "name": "Magic Spells",
-            "section": "world",
-            "items": [
-                {
-                    "id": "fireball",
-                    "name": "Fireball",
-                    "description": "Explosion!",
+                    "id": "new-item-1766394880600",
+                    "name": "Test de colores",
+                    "description": "<font color=\"#f44336\">rojo </font><font color=\"#ff9800\">naranja </font><font color=\"#4caf50\">verde </font><font color=\"#2196f3\">azul </font><font color=\"#9c27b0\">violeta&nbsp;</font><div><font color=\"#ffffff\">sadas<br></font><b style=\"font-size: 17.6px;\">negrita</b><br style=\"font-size: 17.6px;\"><i style=\"font-size: 17.6px;\">italic</i><br style=\"font-size: 17.6px;\"><u style=\"font-size: 17.6px;\">subrayado</u><br style=\"font-size: 17.6px;\"><strike style=\"font-size: 17.6px;\">tachado</strike><font color=\"#ffffff\"></font></div>",
                     "tags": [
                         "New"
                     ]
                 }
-            ]
+            ],
+            "description": "Estadisticas de Rolleandou lalala"
         },
         {
-            "id": "magic",
-            "name": "Magia",
+            "id": "new-category-1766393777331",
+            "name": "Estadísticas",
             "section": "world",
+            "description": "Category without description",
             "items": [
                 {
-                    "id": "fire",
-                    "name": "Fire",
-                    "description": "Hot!",
-                    "tags": [
-                        "New"
-                    ]
-                },
-                {
-                    "id": "fire",
-                    "name": "Fire",
-                    "description": "Hot!",
-                    "tags": [
-                        "New"
-                    ]
+                    "id": "new-item-1766393777331",
+                    "name": "Fisico",
+                    "description": "No se, no soy Ale :P",
+                    "tags": [],
+                    "restrictedTo": null
                 }
             ]
         }

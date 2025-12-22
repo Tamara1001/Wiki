@@ -214,6 +214,48 @@ function updateAuthUI() {
             });
             controls.insertBefore(adminBtn, userDisplay);
         }
+
+        // Character Profile Selector (for all logged-in users)
+        const existingCharSelect = document.getElementById('charProfileSelect');
+        if (existingCharSelect) existingCharSelect.remove();
+
+        const userChars = getUserCharacters(currentUser.username);
+        if (userChars && userChars.length > 0) {
+            const charSelect = document.createElement('select');
+            charSelect.id = 'charProfileSelect';
+            charSelect.style.cssText = 'padding: 5px 10px; margin-right: 10px; font-size: 0.9em; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;';
+
+            // Get current selected character from session
+            const currentChar = sessionStorage.getItem('selectedCharacter') || userChars[0];
+
+            userChars.forEach(char => {
+                const option = document.createElement('option');
+                option.value = char;
+                option.textContent = char;
+                if (char === currentChar) option.selected = true;
+                charSelect.appendChild(option);
+            });
+
+            charSelect.addEventListener('change', (e) => {
+                sessionStorage.setItem('selectedCharacter', e.target.value);
+                // Update display
+                userDisplay.textContent = currentUser.username + ' - ' + e.target.value + (currentUser.role === 'admin' ? ' (Admin)' : '');
+
+                // Refresh content to update permissions
+                if (window.location.pathname.includes('item.html')) {
+                    const itemContainer = document.getElementById('itemDetailContainer');
+                    if (itemContainer) renderItemDetail(itemContainer);
+                } else {
+                    const contentGrid = document.getElementById('contentGrid');
+                    if (contentGrid) renderHome(contentGrid);
+                }
+            });
+
+            controls.insertBefore(charSelect, userDisplay);
+
+            // Update username display to include character
+            userDisplay.textContent = currentUser.username + ' - ' + currentChar + (currentUser.role === 'admin' ? ' (Admin)' : '');
+        }
     } else {
         authBtn.textContent = 'Login';
         userDisplay.textContent = 'Guest';
@@ -222,13 +264,39 @@ function updateAuthUI() {
         // Remove Admin button on logout
         const existingAdminBtn = document.getElementById('adminPanelBtn');
         if (existingAdminBtn) existingAdminBtn.remove();
+
+        // Remove Character selector on logout
+        const existingCharSelect = document.getElementById('charProfileSelect');
+        if (existingCharSelect) existingCharSelect.remove();
+
+        // Clear selected character
+        sessionStorage.removeItem('selectedCharacter');
     }
 }
+
+// Helper to get user's characters from localUsers
+function getUserCharacters(username) {
+    const stored = localStorage.getItem('localUsers');
+    let userList = users;
+    if (stored) {
+        try {
+            userList = JSON.parse(stored);
+        } catch (e) { }
+    }
+    const user = userList.find(u => u.username.toLowerCase() === username.toLowerCase());
+    return user ? (user.characters || []) : [];
+}
+
 function hasPermission(item) {
     if (!item.restrictedTo) return true;
     if (currentUser && currentUser.role === 'admin') return true;
     if (!currentUser) return false;
-    return item.restrictedTo.map(u => u.toLowerCase()).includes(currentUser.username.toLowerCase());
+
+    // Check permissions based on selected character (not username)
+    const selectedChar = sessionStorage.getItem('selectedCharacter');
+    if (!selectedChar) return false;
+
+    return item.restrictedTo.map(c => c.toLowerCase()).includes(selectedChar.toLowerCase());
 }
 
 // -- NAVIGATION --

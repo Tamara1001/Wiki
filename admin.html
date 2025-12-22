@@ -105,6 +105,7 @@
                         <tr style="background: var(--bg-card); border-bottom: 1px solid var(--border-color);">
                             <th style="padding: 12px; text-align: left;">Username</th>
                             <th style="padding: 12px; text-align: left;">Role</th>
+                            <th style="padding: 12px; text-align: left;">Characters</th>
                             <th style="padding: 12px; text-align: right;">Actions</th>
                         </tr>
                     </thead>
@@ -112,6 +113,11 @@
             `;
 
             localUsers.forEach((u, index) => {
+                const chars = u.characters || [];
+                const charsDisplay = chars.length > 0
+                    ? chars.map(c => `<span style="background: var(--accent-blue); padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin-right: 4px;">${c}</span>`).join('')
+                    : '<span style="color: var(--text-secondary); font-size: 0.8em;">No characters</span>';
+
                 html += `
                     <tr style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 12px;">${u.username}</td>
@@ -120,7 +126,9 @@
                                 ${u.role}
                             </span>
                         </td>
+                        <td style="padding: 12px;">${charsDisplay}</td>
                         <td style="padding: 12px; text-align: right;">
+                            <button class="btn-back chars-user-btn" data-index="${index}" style="padding: 5px 10px; font-size: 0.8rem; width: auto; margin-right: 5px; background-color: #9c27b0;">Characters</button>
                             <button class="btn-back edit-user-btn" data-index="${index}" style="padding: 5px 10px; font-size: 0.8rem; width: auto; margin-right: 5px;">Edit</button>
                             <button class="btn-back delete-user-btn" data-index="${index}" data-confirm="idle" style="padding: 5px 10px; font-size: 0.8rem; width: auto; background-color: #ff5252; transition: all 0.2s;">Delete</button>
                         </td>
@@ -168,6 +176,113 @@
                     }
                 });
             });
+
+            // Attach Characters button listeners
+            document.querySelectorAll('.chars-user-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    openCharacterManager(parseInt(btn.dataset.index));
+                });
+            });
+        }
+
+        let currentCharUserIndex = null;
+
+        function openCharacterManager(userIndex) {
+            currentCharUserIndex = userIndex;
+            const localUsers = getLocalUsers();
+            const user = localUsers[userIndex];
+            const chars = user.characters || [];
+
+            // Create modal overlay
+            let modal = document.getElementById('charManagerModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'charManagerModal';
+                modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+                document.body.appendChild(modal);
+            }
+
+            let charListHtml = chars.length > 0
+                ? chars.map((c, i) => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--bg-dark); margin-bottom: 5px; border-radius: 4px;">
+                        <span>${c}</span>
+                        <button class="remove-char-btn" data-char-index="${i}" style="background: #ff5252; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer;">✕</button>
+                    </div>
+                `).join('')
+                : '<p style="color: var(--text-secondary);">No characters assigned.</p>';
+
+            modal.innerHTML = `
+                <div style="background: var(--bg-card); padding: 30px; border-radius: 10px; width: 400px; max-width: 90%;">
+                    <h3 style="margin-top: 0;">Manage Characters: ${user.username}</h3>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label>Add Character</label>
+                        <div style="display: flex; gap: 10px; margin-top: 5px;">
+                            <input type="text" id="new-char-name" placeholder="Character name" style="flex: 1; padding: 10px; background: var(--bg-dark); color: white; border: 1px solid var(--border-color);">
+                            <button id="add-char-btn" class="btn-primary" style="width: auto; padding: 10px 15px;">+ Add</button>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label>Current Characters</label>
+                        <div id="char-list" style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
+                            ${charListHtml}
+                        </div>
+                    </div>
+                    
+                    <button id="close-char-modal" class="btn-back" style="width: 100%;">Close</button>
+                </div>
+            `;
+
+            modal.style.display = 'flex';
+
+            // Add char button
+            document.getElementById('add-char-btn').addEventListener('click', () => {
+                const charName = document.getElementById('new-char-name').value.trim();
+                if (charName) {
+                    addCharacterToUser(currentCharUserIndex, charName);
+                    openCharacterManager(currentCharUserIndex); // Refresh modal
+                }
+            });
+
+            // Remove char buttons
+            document.querySelectorAll('.remove-char-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    removeCharacterFromUser(currentCharUserIndex, parseInt(btn.dataset.charIndex));
+                    openCharacterManager(currentCharUserIndex); // Refresh modal
+                });
+            });
+
+            // Close button
+            document.getElementById('close-char-modal').addEventListener('click', () => {
+                modal.style.display = 'none';
+                renderUserList(); // Refresh table
+            });
+
+            // Close on overlay click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                    renderUserList();
+                }
+            });
+        }
+
+        function addCharacterToUser(userIndex, characterName) {
+            const localUsers = getLocalUsers();
+            if (!localUsers[userIndex].characters) {
+                localUsers[userIndex].characters = [];
+            }
+            localUsers[userIndex].characters.push(characterName);
+            saveLocalUsers(localUsers);
+        }
+
+        function removeCharacterFromUser(userIndex, charIndex) {
+            const localUsers = getLocalUsers();
+            if (localUsers[userIndex].characters) {
+                localUsers[userIndex].characters.splice(charIndex, 1);
+                saveLocalUsers(localUsers);
+            }
         }
 
         function executeDeleteUser(index) {

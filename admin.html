@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin User Management - RPG Game Wiki">
+    <title>Admin - User Management | RPG Game Wiki</title>
+    <link rel="stylesheet" href="assets/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Main Content -->
+        <div class="main-content" style="margin-left: 0;">
+            <header class="top-bar">
+                <a href="index.html" class="btn-back" style="margin-right: 20px;">← Back to Wiki</a>
+                <h2 style="flex-grow: 1; margin: 0;">Admin - User Management</h2>
+                <div class="user-controls">
+                    <span id="userDisplay" class="user-display">Admin</span>
+                </div>
+            </header>
+
+            <main style="padding: 40px;">
+                <!-- Add User Form -->
+                <section class="admin-section" style="margin-bottom: 40px;">
+                    <h3>Add New User</h3>
+                    <div class="form-group" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                        <div>
+                            <label for="new-username">Username</label>
+                            <input type="text" id="new-username" placeholder="Enter username" style="width: 200px;">
+                        </div>
+                        <div>
+                            <label for="new-password">Password</label>
+                            <input type="password" id="new-password" placeholder="Enter password" style="width: 200px;">
+                        </div>
+                        <div>
+                            <label for="new-role">Role</label>
+                            <select id="new-role"
+                                style="width: 150px; padding: 10px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color);">
+                                <option value="custom">Custom</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <button id="addUserBtn" class="btn-primary" style="width: auto; padding: 10px 20px;">+ Add
+                            User</button>
+                    </div>
+                </section>
+
+                <!-- User List -->
+                <section class="admin-section">
+                    <h3>User List</h3>
+                    <div id="userListContainer">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+            </main>
+
+            <footer>
+                <p>&copy; 2025 RPG Game Wiki. Admin Panel.</p>
+            </footer>
+        </div>
+    </div>
+
+    <script src="assets/data.js"></script>
+    <script src="assets/script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if user is admin
+            const session = sessionStorage.getItem('wikiUser');
+            if (!session) {
+                alert('Access Denied. Please login as Admin.');
+                window.location.href = 'index.html';
+                return;
+            }
+            const user = JSON.parse(session);
+            if (user.role !== 'admin') {
+                alert('Access Denied. Admin privileges required.');
+                window.location.href = 'index.html';
+                return;
+            }
+
+            document.getElementById('userDisplay').textContent = user.username + ' (Admin)';
+
+            renderUserList();
+
+            document.getElementById('addUserBtn').onclick = addNewUser;
+        });
+
+        function renderUserList() {
+            const container = document.getElementById('userListContainer');
+            const localUsers = getLocalUsers();
+
+            if (localUsers.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary);">No users found.</p>';
+                return;
+            }
+
+            let html = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: var(--bg-card); border-bottom: 1px solid var(--border-color);">
+                            <th style="padding: 12px; text-align: left;">Username</th>
+                            <th style="padding: 12px; text-align: left;">Role</th>
+                            <th style="padding: 12px; text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            localUsers.forEach((u, index) => {
+                html += `
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px;">${u.username}</td>
+                        <td style="padding: 12px;">
+                            <span style="background: ${u.role === 'admin' ? '#ff5252' : 'var(--accent-blue)'}; padding: 4px 8px; border-radius: 4px; font-size: 0.8em;">
+                                ${u.role}
+                            </span>
+                        </td>
+                        <td style="padding: 12px; text-align: right;">
+                            <button class="btn-back edit-user-btn" data-index="${index}" style="padding: 5px 10px; font-size: 0.8rem; width: auto; margin-right: 5px;">Edit</button>
+                            <button class="btn-back delete-user-btn" data-index="${index}" data-confirm="idle" style="padding: 5px 10px; font-size: 0.8rem; width: auto; background-color: #ff5252; transition: all 0.2s;">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+
+            // Attach Edit button listeners
+            document.querySelectorAll('.edit-user-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    editUserPrompt(parseInt(btn.dataset.index));
+                });
+            });
+
+            // Attach Delete button listeners with 2-step verification
+            document.querySelectorAll('.delete-user-btn').forEach(btn => {
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const index = parseInt(btn.dataset.index);
+
+                    if (btn.dataset.confirm === 'idle') {
+                        // FIRST CLICK: ARM
+                        btn.dataset.confirm = 'confirm';
+                        btn.textContent = 'Confirm?';
+                        btn.style.transform = 'scale(1.1)';
+                        btn.style.backgroundColor = '#d32f2f';
+
+                        // Auto-reset after 3 seconds
+                        setTimeout(() => {
+                            if (btn.dataset.confirm === 'confirm') {
+                                btn.dataset.confirm = 'idle';
+                                btn.textContent = 'Delete';
+                                btn.style.transform = 'scale(1)';
+                                btn.style.backgroundColor = '#ff5252';
+                            }
+                        }, 3000);
+                    } else if (btn.dataset.confirm === 'confirm') {
+                        // SECOND CLICK: EXECUTE
+                        executeDeleteUser(index);
+                    }
+                });
+            });
+        }
+
+        function executeDeleteUser(index) {
+            const localUsers = getLocalUsers();
+            const user = localUsers[index];
+            console.log('Deleting user:', user.username);
+            localUsers.splice(index, 1);
+            saveLocalUsers(localUsers);
+            renderUserList();
+        }
+
+        function getLocalUsers() {
+            const stored = localStorage.getItem('localUsers');
+            if (stored) {
+                try {
+                    return JSON.parse(stored);
+                } catch (e) {
+                    return [...users]; // Fallback to original
+                }
+            }
+            return [...users]; // Copy of original users array
+        }
+
+        function saveLocalUsers(userList) {
+            localStorage.setItem('localUsers', JSON.stringify(userList));
+        }
+
+        async function addNewUser() {
+            const username = document.getElementById('new-username').value.trim();
+            const password = document.getElementById('new-password').value;
+            const role = document.getElementById('new-role').value;
+
+            if (!username || !password) {
+                alert('Please enter username and password.');
+                return;
+            }
+
+            const localUsers = getLocalUsers();
+
+            // Check if username already exists
+            if (localUsers.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+                alert('Username already exists.');
+                return;
+            }
+
+            // Hash password
+            const passwordHash = await hashPassword(password);
+
+            localUsers.push({
+                username: username,
+                passwordHash: passwordHash,
+                role: role
+            });
+
+            saveLocalUsers(localUsers);
+
+            // Clear form
+            document.getElementById('new-username').value = '';
+            document.getElementById('new-password').value = '';
+            document.getElementById('new-role').value = 'custom';
+
+            renderUserList();
+            alert('User added successfully!');
+        }
+
+        async function editUserPrompt(index) {
+            const localUsers = getLocalUsers();
+            const user = localUsers[index];
+
+            const newUsername = prompt('Enter new username:', user.username);
+            if (newUsername === null) return; // Cancelled
+
+            const newRole = prompt('Enter role (admin or custom):', user.role);
+            if (newRole === null) return;
+
+            const changePassword = confirm('Do you want to change the password?');
+            let newPasswordHash = user.passwordHash;
+
+            if (changePassword) {
+                const newPassword = prompt('Enter new password:');
+                if (newPassword) {
+                    newPasswordHash = await hashPassword(newPassword);
+                }
+            }
+
+            localUsers[index] = {
+                username: newUsername.trim() || user.username,
+                passwordHash: newPasswordHash,
+                role: (newRole === 'admin' || newRole === 'custom') ? newRole : user.role
+            };
+
+            saveLocalUsers(localUsers);
+            renderUserList();
+            alert('User updated successfully!');
+        }
+
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+    </script>
+</body>
+
+</html>

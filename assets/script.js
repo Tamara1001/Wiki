@@ -114,8 +114,19 @@ function openLoginModal() {
 
 async function login(username, password) {
     const pHash = await hashPassword(password);
-    // Check against users array in data.js
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.passwordHash === pHash);
+
+    // Check localUsers from localStorage first, fallback to original users array
+    let userList = users;
+    const storedUsers = localStorage.getItem('localUsers');
+    if (storedUsers) {
+        try {
+            userList = JSON.parse(storedUsers);
+        } catch (e) {
+            console.error('Failed to parse localUsers', e);
+        }
+    }
+
+    const user = userList.find(u => u.username.toLowerCase() === username.toLowerCase() && u.passwordHash === pHash);
 
     if (user) {
         // Successful login
@@ -185,11 +196,32 @@ function updateAuthUI() {
                 }
             };
             controls.insertBefore(toggle, userDisplay);
+
+            // Admin Panel Button
+            const existingAdminBtn = document.getElementById('adminPanelBtn');
+            if (existingAdminBtn) existingAdminBtn.remove();
+
+            const adminBtn = document.createElement('button');
+            adminBtn.id = 'adminPanelBtn';
+            adminBtn.type = 'button'; // Prevent form submission
+            adminBtn.className = 'btn-primary';
+            adminBtn.style.cssText = 'padding: 5px 10px; margin-right: 10px; font-size: 0.9em; background-color: #9c27b0;';
+            adminBtn.textContent = '⚙️ Admin';
+            adminBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.location.href = 'admin.html';
+            });
+            controls.insertBefore(adminBtn, userDisplay);
         }
     } else {
         authBtn.textContent = 'Login';
         userDisplay.textContent = 'Guest';
         isEditMode = false;
+
+        // Remove Admin button on logout
+        const existingAdminBtn = document.getElementById('adminPanelBtn');
+        if (existingAdminBtn) existingAdminBtn.remove();
     }
 }
 function hasPermission(item) {

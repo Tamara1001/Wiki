@@ -473,6 +473,25 @@ function renderHome(container) {
 
             catGroup.appendChild(headerWrapper);
 
+            // Show Category Description ONLY on Category Page (Filtered View)
+            if (filterCategoryId) {
+                const descP = document.createElement('p');
+                descP.className = 'category-description';
+                descP.textContent = category.description || 'No description.';
+                descP.style.cssText = 'color: var(--text-secondary); margin-bottom: 20px; font-style: italic;';
+                catGroup.appendChild(descP);
+
+                // Admin: Edit Description Button
+                if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                    const editDescBtn = document.createElement('button');
+                    editDescBtn.textContent = '✏️ Edit Description';
+                    editDescBtn.className = 'btn-back';
+                    editDescBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: var(--accent-blue); width: auto; margin-bottom: 20px;';
+                    editDescBtn.onclick = () => editCategoryDescription(catIndex);
+                    catGroup.insertBefore(editDescBtn, descP.nextSibling);
+                }
+            }
+
             const list = document.createElement('ul');
             list.className = 'item-list';
 
@@ -543,9 +562,14 @@ function renderHome(container) {
                     });
                 }
 
+                // Show description only on Category Page, not on Main Menu
+                const descHtml = filterCategoryId
+                    ? `<span class="item-desc-short">${item.description}</span>`
+                    : '';
+
                 a.innerHTML = `
                     <span class="item-name">${item.name}${adminBadge}</span>
-                    <span class="item-desc-short">${item.description}</span>
+                    ${descHtml}
                 `;
                 li.appendChild(a);
                 list.appendChild(li);
@@ -619,6 +643,7 @@ function addCategory() {
         id,
         name,
         section,
+        description: 'Category without description',
         items: []
     };
 
@@ -638,6 +663,58 @@ function addCategory() {
     const contentGrid = document.getElementById('contentGrid');
     if (contentGrid) renderHome(contentGrid);
     renderNavigation();
+}
+
+function editCategoryDescription(index) {
+    const category = localWikiData.categories[index];
+    const catGroup = document.getElementById(category.id);
+    if (!catGroup) return;
+
+    const descP = catGroup.querySelector('.category-description');
+    if (!descP) return;
+
+    const originalText = descP.textContent;
+
+    // Create Textarea
+    const textarea = document.createElement('textarea');
+    textarea.value = category.description || '';
+    textarea.style.cssText = 'width: 100%; min-height: 80px; padding: 10px; color: #fff; background: #333; border: 1px solid #555; font-size: 1rem; margin-bottom: 10px;';
+
+    // Create Save Button
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = '💾 Save';
+    saveBtn.className = 'btn-back';
+    saveBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: #4CAF50; width: auto; margin-right: 10px;';
+    saveBtn.onclick = () => {
+        localWikiData.categories[index].description = textarea.value.trim();
+        persistData();
+        renderHome(document.getElementById('contentGrid'));
+    };
+
+    // Create Cancel Button
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '❌ Cancel';
+    cancelBtn.className = 'btn-back';
+    cancelBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: #666; width: auto;';
+    cancelBtn.onclick = () => {
+        renderHome(document.getElementById('contentGrid'));
+    };
+
+    // Replace description paragraph with textarea
+    const container = document.createElement('div');
+    container.appendChild(textarea);
+    container.appendChild(saveBtn);
+    container.appendChild(cancelBtn);
+
+    descP.replaceWith(container);
+
+    // Hide the Edit Description button
+    const editBtn = catGroup.querySelector('button');
+    if (editBtn && editBtn.textContent.includes('Edit Description')) {
+        editBtn.style.display = 'none';
+    }
+
+    textarea.focus();
 }
 
 function renameCategory(index) {
@@ -782,7 +859,6 @@ function renderItemDetail(container) {
     let contentHtml = '';
     if (currentUser && currentUser.role === 'admin' && isEditMode && container.dataset.editing === 'true') {
         // RENDER IN EDIT MODE
-        const tagsVal = foundItem.tags.join(', ');
         const restrictedVal = foundItem.restrictedTo ? foundItem.restrictedTo.join(', ') : '';
 
         contentHtml = `
@@ -793,10 +869,6 @@ function renderItemDetail(container) {
                 <div class="form-group">
                     <label>Item Name</label>
                     <input type="text" id="edit-name" value="${foundItem.name}">
-                </div>
-                <div class="form-group">
-                    <label>Tags (comma separated)</label>
-                    <input type="text" id="edit-tags" value="${tagsVal}">
                 </div>
                 <div class="form-group">
                     <label>Description</label>
@@ -898,7 +970,6 @@ function renderItemDetail(container) {
         actionsContainer.appendChild(deleteBtn);
     } else {
         // RENDER IN VIEW MODE
-        const tagsHtml = foundItem.tags.map(tag => `<span class="tag">${tag}</span>`).join('');
 
         contentHtml = `
             <div class="breadcrumb">
@@ -909,12 +980,8 @@ function renderItemDetail(container) {
                     <h1>${foundItem.name} ${currentUser && currentUser.role === 'admin' && isEditMode ? '<span class="admin-edit-badge">EDITABLE</span>' : ''}</h1>
                 </div>
                 
-                <div class="tags-container">${tagsHtml}</div>
                 <div class="item-description">
                     <p>${foundItem.description}</p>
-                    <p class="lorem-ipsum">
-                        <em>Additional lore or detailed stats would go here.</em>
-                    </p>
                     ${currentUser && currentUser.role === 'admin' && isEditMode && foundItem.restrictedTo ? `<p style="color:#ff5252; margin-top:10px"><strong>Visibility:</strong> Restricted to: ${foundItem.restrictedTo.length > 0 ? foundItem.restrictedTo.join(', ') : 'Admin Only'}</p>` : ''}
                 </div>
                 
@@ -944,14 +1011,7 @@ function renderItemDetail(container) {
             editBtn.textContent = 'Edit Content';
             editBtn.onclick = () => toggleItemEdit(true);
 
-            const saveBtn = document.createElement('button');
-            saveBtn.className = 'btn-primary';
-            saveBtn.style.cssText = 'width:auto; margin-left:10px; background-color: #4CAF50;';
-            saveBtn.textContent = 'SAVE TO STORAGE';
-            saveBtn.onclick = saveGlobalChanges;
-
             actionsContainer.appendChild(editBtn);
-            actionsContainer.appendChild(saveBtn);
         }
     }
 
@@ -970,7 +1030,6 @@ function toggleItemEdit(isEditing) {
 
 function saveItemEdit(itemId) {
     const name = document.getElementById('edit-name').value;
-    const tags = document.getElementById('edit-tags').value.split(',').map(t => t.trim()).filter(t => t);
     const desc = document.getElementById('edit-desc').value;
     const restricted = document.getElementById('edit-restricted').value.split(',').map(t => t.trim()).filter(t => t);
 
@@ -979,7 +1038,6 @@ function saveItemEdit(itemId) {
         const item = cat.items.find(i => i.id === itemId);
         if (item) {
             item.name = name;
-            item.tags = tags;
             item.description = desc;
             if (restricted.length > 0) {
                 item.restrictedTo = restricted;
@@ -998,7 +1056,7 @@ function saveItemEdit(itemId) {
 // Search Features
 if (searchInput) {
     searchInput.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
+        const term = e.target.value.toLowerCase().trim();
 
         // Hide/Show results based on logic
         if (!term) {
@@ -1006,26 +1064,61 @@ if (searchInput) {
             return;
         }
 
-        const matches = [];
+        // Priority 1: Categories matching the search term
+        const categoryMatches = [];
         localWikiData.categories.forEach(cat => {
-            // Apply permission filter to search results too!
+            if (cat.name.toLowerCase().includes(term)) {
+                categoryMatches.push({ type: 'category', category: cat });
+            }
+        });
+
+        // Priority 2: Items matching by name
+        const itemNameMatches = [];
+        localWikiData.categories.forEach(cat => {
             cat.items.filter(i => hasPermission(i)).forEach(item => {
-                if (item.name.toLowerCase().includes(term) || item.tags.some(t => t.toLowerCase().includes(term))) {
-                    matches.push({ item, category: cat });
+                if (item.name.toLowerCase().includes(term)) {
+                    itemNameMatches.push({ type: 'item', item, category: cat });
                 }
             });
         });
 
-        if (matches.length > 0) {
+        // Priority 3: Items matching by description
+        const itemDescMatches = [];
+        localWikiData.categories.forEach(cat => {
+            cat.items.filter(i => hasPermission(i)).forEach(item => {
+                // Only add if not already matched by name
+                if (!item.name.toLowerCase().includes(term) &&
+                    item.description.toLowerCase().includes(term)) {
+                    itemDescMatches.push({ type: 'item-desc', item, category: cat });
+                }
+            });
+        });
+
+        // Combine results in priority order
+        const allMatches = [...categoryMatches, ...itemNameMatches, ...itemDescMatches];
+
+        if (allMatches.length > 0) {
             searchResults.style.display = 'block';
-            searchResults.innerHTML = matches.map(m => `
-                <a href="item.html?id=${m.item.id}" class="search-result-item">
-                    <span class="name">${m.item.name}</span>
-                    <span class="cat">${m.category.name}</span>
-                </a>
-            `).join('');
+            searchResults.innerHTML = allMatches.map(m => {
+                if (m.type === 'category') {
+                    return `
+                        <a href="index.html?category=${m.category.id}" class="search-result-item">
+                            <span class="name">📁 ${m.category.name}</span>
+                            <span class="cat">Category</span>
+                        </a>
+                    `;
+                } else {
+                    return `
+                        <a href="item.html?id=${m.item.id}" class="search-result-item">
+                            <span class="name">${m.item.name}</span>
+                            <span class="cat">${m.category.name}</span>
+                        </a>
+                    `;
+                }
+            }).join('');
         } else {
-            searchResults.style.display = 'none';
+            searchResults.style.display = 'block';
+            searchResults.innerHTML = '<div class="search-result-item" style="color:var(--text-secondary);">No results found</div>';
         }
     });
 

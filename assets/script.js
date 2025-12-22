@@ -280,44 +280,57 @@ function renderNavigation() {
     });
 }
 
+const urlParams = new URLSearchParams(window.location.search);
+const filterCategoryId = urlParams.get('category');
+
 function renderHome(container) {
     container.innerHTML = '';
 
-    // Add Save Button for Admin (Only in Edit Mode)
-    if (currentUser && currentUser.role === 'admin' && isEditMode) {
-        const adminBar = document.createElement('div');
-        adminBar.className = 'admin-action-bar';
+    // If filtering, add a Back button
+    if (filterCategoryId) {
+        const backLink = document.createElement('a');
+        backLink.href = 'index.html';
+        backLink.className = 'btn-back';
+        backLink.style.display = 'inline-block';
+        backLink.style.marginBottom = '20px';
+        backLink.textContent = '← Back to All Categories';
+        container.appendChild(backLink);
+    } else {
+        // Only show Admin Bar in full view (optional, but cleaner)
+        // Add Save Button for Admin (Only in Edit Mode)
+        if (currentUser && currentUser.role === 'admin' && isEditMode) {
+            const adminBar = document.createElement('div');
+            adminBar.className = 'admin-action-bar';
 
-        const saveBtn = document.createElement('button');
-        saveBtn.textContent = 'SAVE CHANGES';
-        saveBtn.className = 'btn-primary';
-        saveBtn.style.cssText = 'width:auto; background-color: #4CAF50;';
-        saveBtn.onclick = saveGlobalChanges;
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'SAVE CHANGES';
+            saveBtn.className = 'btn-primary';
+            saveBtn.style.cssText = 'width:auto; background-color: #4CAF50;';
+            saveBtn.onclick = saveGlobalChanges;
 
-        /*
-        const resetBtn = document.createElement('button');
-        resetBtn.textContent = 'Reset to Default';
-        resetBtn.className = 'btn-back';
-        resetBtn.style.cssText = 'margin-top:0; background-color: #666;';
-        resetBtn.onclick = resetWikiData;
-        */
+            // adminBar.appendChild(resetBtn); // Removed as per request
 
-        const addBtn = document.createElement('button');
-        addBtn.textContent = '+ Add Category';
-        addBtn.className = 'btn-primary';
-        addBtn.style.cssText = 'width:auto; margin-left:10px;';
-        addBtn.onclick = () => {
-            console.log('Add Category Button Clicked');
-            addCategory();
-        };
+            const addBtn = document.createElement('button');
+            addBtn.textContent = '+ Add Category';
+            addBtn.className = 'btn-primary';
+            addBtn.style.cssText = 'width:auto; margin-left:10px;';
+            addBtn.onclick = () => {
+                console.log('Add Category Button Clicked');
+                addCategory();
+            };
 
-        adminBar.appendChild(saveBtn);
-        // adminBar.appendChild(resetBtn); // Removed as per request
-        adminBar.appendChild(addBtn);
-        container.appendChild(adminBar);
+            adminBar.appendChild(saveBtn);
+            adminBar.appendChild(addBtn);
+            container.appendChild(adminBar);
+        }
     }
 
     localWikiData.categories.forEach((category, catIndex) => {
+        // FILTER LOGIC
+        if (filterCategoryId && category.id !== filterCategoryId) {
+            return; // Skip if not matching filter
+        }
+
         // Filter Items based on permissions!
         const visibleItems = category.items.filter(item => hasPermission(item));
 
@@ -329,31 +342,74 @@ function renderHome(container) {
             const headerWrapper = document.createElement('div');
             headerWrapper.className = 'category-header-wrapper';
 
+            // MAKE HEADER CLICKABLE
             const h2 = document.createElement('h2');
-            h2.textContent = category.name;
+
+            // Create link for category page
+            const catLink = document.createElement('a');
+            catLink.href = `index.html?category=${category.id}`;
+            catLink.textContent = category.name;
+            catLink.style.cssText = 'color: inherit; text-decoration: none; cursor: pointer;';
+            catLink.onmouseover = () => catLink.style.color = 'var(--accent-blue)';
+            catLink.onmouseout = () => catLink.style.color = 'inherit';
+
+            h2.appendChild(catLink);
             headerWrapper.appendChild(h2);
 
             if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                // REMOVED EDIT BUTTONS PER USER REQUEST
-                /*
-                const catActions = document.createElement('div');
-                catActions.className = 'item-actions-mini';
+                // Show Admin Controls ONLY if we are on a specific Category Page (Filtered View)
+                if (filterCategoryId) {
+                    const catActions = document.createElement('div');
+                    catActions.className = 'item-actions-mini';
+                    catActions.style.marginTop = '10px';
+                    catActions.style.display = 'flex';
+                    catActions.style.gap = '10px';
 
-                const renameBtn = document.createElement('button');
-                renameBtn.title = 'Rename';
-                renameBtn.textContent = '✏️';
-                renameBtn.onclick = () => renameCategory(catIndex);
+                    const renameBtn = document.createElement('button');
+                    renameBtn.textContent = 'Rename Category';
+                    renameBtn.className = 'btn-back';
+                    renameBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: var(--accent-blue); width: auto;';
+                    renameBtn.onclick = () => renameCategory(catIndex);
 
-                const delBtn = document.createElement('button');
-                delBtn.title = 'Delete';
-                delBtn.textContent = '🗑️';
-                delBtn.className = 'btn-delete';
-                delBtn.onclick = () => deleteCategory(catIndex);
+                    const delBtn = document.createElement('button');
+                    delBtn.textContent = 'Delete Category';
+                    delBtn.className = 'btn-back';
+                    delBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: #ff5252; width: auto;';
+                    // 2-Step Verification Logic
+                    delBtn.dataset.confirmState = 'idle';
 
-                catActions.appendChild(renameBtn);
-                catActions.appendChild(delBtn);
-                headerWrapper.appendChild(catActions);
-                */
+                    delBtn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        if (delBtn.dataset.confirmState === 'idle') {
+                            // FIRST CLICK: ARM
+                            delBtn.dataset.confirmState = 'confirm';
+                            delBtn.textContent = 'Confirm Delete?';
+                            delBtn.style.transform = 'scale(1.1)';
+                            delBtn.style.backgroundColor = '#d32f2f'; // Darker red
+
+                            // Auto-reset after 3 seconds
+                            setTimeout(() => {
+                                if (delBtn.dataset.confirmState === 'confirm') {
+                                    delBtn.dataset.confirmState = 'idle';
+                                    delBtn.textContent = 'Delete Category';
+                                    delBtn.style.transform = 'scale(1)';
+                                    delBtn.style.backgroundColor = '#ff5252';
+                                }
+                            }, 3000);
+                        } else if (delBtn.dataset.confirmState === 'confirm') {
+                            // SECOND CLICK: EXECUTE
+                            deleteCategory(catIndex);
+                            // Redirect handled inside deleteCategory or here
+                            window.location.href = 'index.html';
+                        }
+                    });
+
+                    catActions.appendChild(renameBtn);
+                    catActions.appendChild(delBtn);
+                    headerWrapper.appendChild(catActions);
+                }
             }
 
             catGroup.appendChild(headerWrapper);
@@ -381,20 +437,6 @@ function renderHome(container) {
                     <span class="item-desc-short">${item.description}</span>
                 `;
                 li.appendChild(a);
-
-                /*
-                if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                    const itemAdminActions = document.createElement('div');
-                    itemAdminActions.className = 'item-admin-actions';
-                    const delItemBtn = document.createElement('button');
-                    delItemBtn.title = 'Delete Item';
-                    delItemBtn.textContent = '🗑️';
-                    delItemBtn.onclick = () => deleteItem(category.id, item.id);
-                    itemAdminActions.appendChild(delItemBtn);
-                    li.appendChild(itemAdminActions);
-                }
-                */
-
                 list.appendChild(li);
             });
 
@@ -416,21 +458,24 @@ function renderHome(container) {
             container.appendChild(catGroup);
         }
     });
+
+    // If filtering and no category found (wrong ID)
+    if (filterCategoryId && container.children.length <= 1) { // 1 accounts for back button
+        const errorMsg = document.createElement('p');
+        errorMsg.textContent = 'Category not found.';
+        container.appendChild(errorMsg);
+    }
 }
 
 // --- ADMIN EDIT ACTIONS ---
 
 function addCategory() {
-    console.log('addCategory function started');
-    const name = prompt('Enter new Category name:');
-    if (!name) return;
-    const id = name.toLowerCase().replace(/\s+/g, '-');
-    const sections = ['core', 'player', 'world'];
-    const section = prompt('Enter section (core, player, or world):', 'world');
-    if (!sections.includes(section)) {
-        alert('Invalid section. Must be core, player, or world.');
-        return;
-    }
+    console.log('addCategory function started (Automated)');
+
+    const timestamp = Date.now();
+    const id = `new-category-${timestamp}`;
+    const name = 'New Category';
+    const section = 'world'; // Default section
 
     const newCat = {
         id,
@@ -438,6 +483,16 @@ function addCategory() {
         section,
         items: []
     };
+
+    // Auto-create a first item so the category isn't empty/invisible
+    newCat.items.push({
+        id: `new-item-${timestamp}`,
+        name: 'New Item',
+        description: 'Item without description',
+        tags: [],
+        restrictedTo: null
+    });
+
     localWikiData.categories.push(newCat);
     console.log('New category added:', newCat);
     persistData();
@@ -448,21 +503,65 @@ function addCategory() {
 }
 
 function renameCategory(index) {
-    const newName = prompt('Enter new Category name:', localWikiData.categories[index].name);
-    if (!newName) return;
-    localWikiData.categories[index].name = newName;
-    persistData();
-    renderHome(document.getElementById('contentGrid'));
-    renderNavigation();
+    const category = localWikiData.categories[index];
+    const catGroup = document.getElementById(category.id);
+    if (!catGroup) return;
+
+    const headerWrapper = catGroup.querySelector('.category-header-wrapper');
+    const h2 = headerWrapper.querySelector('h2');
+
+    // Save original content to restore on cancel
+    const originalContent = h2.innerHTML;
+
+    // Create Input
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = category.name;
+    input.style.cssText = 'font-size: 1.5em; padding: 5px; color: #fff; background: #333; border: 1px solid #555; width: 300px;';
+
+    // Create Save Button
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = '💾';
+    saveBtn.title = 'Save Name';
+    saveBtn.style.cssText = 'margin-left: 10px; cursor: pointer; padding: 5px; background: none; border: none; font-size: 1.5em;';
+    saveBtn.onclick = () => {
+        if (input.value.trim()) {
+            localWikiData.categories[index].name = input.value.trim();
+            persistData();
+            renderHome(document.getElementById('contentGrid'));
+            renderNavigation();
+        }
+    };
+
+    // Create Cancel Button
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '❌';
+    cancelBtn.title = 'Cancel';
+    cancelBtn.style.cssText = 'margin-left: 5px; cursor: pointer; padding: 5px; background: none; border: none; font-size: 1.5em;';
+    cancelBtn.onclick = () => {
+        h2.innerHTML = originalContent;
+        // Re-attach listeners is tricky with innerHTML, better to just re-render or be careful.
+        // For safety/simplicity in this app: RENDER_HOME
+        renderHome(document.getElementById('contentGrid'));
+    };
+
+    // Clear and append
+    h2.innerHTML = '';
+    h2.appendChild(input);
+    h2.appendChild(saveBtn);
+    h2.appendChild(cancelBtn);
+    input.focus();
 }
 
 function deleteCategory(index) {
-    if (confirm(`Are you sure you want to delete the category "${localWikiData.categories[index].name}" and all its items?`)) {
-        localWikiData.categories.splice(index, 1);
-        persistData();
-        renderHome(document.getElementById('contentGrid'));
-        renderNavigation();
-    }
+    // REMOVED CONFIRM DIALOG - Handled by UI Button
+    const catName = localWikiData.categories[index].name;
+    console.log(`Deleting category: ${catName}`);
+
+    localWikiData.categories.splice(index, 1);
+    persistData();
+    renderHome(document.getElementById('contentGrid'));
+    renderNavigation();
 }
 
 function addItem(catId) {

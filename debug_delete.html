@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Debug Button</title>
+</head>
+
+<body>
+    <h1>Debug Delete Button Logic</h1>
+    <div id="container"></div>
+
+    <script>
+        // MOCK DATA
+        const localWikiData = {
+            categories: [
+                {
+                    id: 'cat1',
+                    items: [
+                        { id: 'item1', name: 'Test Item' }
+                    ]
+                }
+            ]
+        };
+        const itemId = 'item1';
+
+        function persistData() {
+            console.log('Persist Called');
+            alert('Persist Success');
+        }
+
+        // ELEMENT CREATION MOCK
+        const container = document.getElementById('container');
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete Item';
+        deleteBtn.onclick = () => {
+            console.log('Click detected');
+            if (confirm('Are you sure?')) {
+                console.log('Confirmed');
+                console.log('Searching for:', itemId);
+
+                let deleted = false;
+                for (const cat of localWikiData.categories) {
+                    const idx = cat.items.findIndex(i => i.id === itemId);
+                    if (idx !== -1) {
+                        cat.items.splice(idx, 1);
+                        deleted = true;
+                        console.log('Deleted from cat:', cat.id);
+                        break;
+                    }
+                }
+
+                if (deleted) {
+                    persistData();
+                    console.log('Redirecting...');
+                } else {
+                    console.error('Delete failed');
+                    alert('Delete failed');
+                }
+            } else {
+                console.log('Cancelled');
+            }
+        };
+
+        container.appendChild(deleteBtn);
+    </script>
+</body>
+
+</html>

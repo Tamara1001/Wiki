@@ -347,6 +347,57 @@ function renderHome(container) {
             catGroup.className = 'category-group';
             catGroup.id = category.id;
 
+            // Category Drag and Drop (Edit Mode Only, Main View Only)
+            if (currentUser && currentUser.role === 'admin' && isEditMode && !filterCategoryId) {
+                catGroup.draggable = true;
+                catGroup.classList.add('draggable-cat');
+                catGroup.dataset.catIndex = catIndex;
+
+                catGroup.addEventListener('dragstart', (e) => {
+                    // Only trigger if dragging the category itself, not an item inside
+                    if (e.target !== catGroup) return;
+                    catGroup.classList.add('dragging-cat');
+                    e.dataTransfer.setData('application/category', JSON.stringify({ catIndex: catIndex }));
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+
+                catGroup.addEventListener('dragend', () => {
+                    catGroup.classList.remove('dragging-cat');
+                    document.querySelectorAll('.drag-over-cat').forEach(el => el.classList.remove('drag-over-cat'));
+                });
+
+                catGroup.addEventListener('dragover', (e) => {
+                    // Accept category drops
+                    if (e.dataTransfer.types.includes('application/category')) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        catGroup.classList.add('drag-over-cat');
+                    }
+                });
+
+                catGroup.addEventListener('dragleave', () => {
+                    catGroup.classList.remove('drag-over-cat');
+                });
+
+                catGroup.addEventListener('drop', (e) => {
+                    if (!e.dataTransfer.types.includes('application/category')) return;
+                    e.preventDefault();
+                    catGroup.classList.remove('drag-over-cat');
+
+                    const data = JSON.parse(e.dataTransfer.getData('application/category'));
+                    const fromIndex = data.catIndex;
+                    const toIndex = catIndex;
+
+                    if (fromIndex !== toIndex) {
+                        const [movedCat] = localWikiData.categories.splice(fromIndex, 1);
+                        localWikiData.categories.splice(toIndex, 0, movedCat);
+                        persistData();
+                        renderHome(document.getElementById('contentGrid'));
+                        renderNavigation();
+                    }
+                });
+            }
+
             const headerWrapper = document.createElement('div');
             headerWrapper.className = 'category-header-wrapper';
 
@@ -438,6 +489,58 @@ function renderHome(container) {
                     if (item.restrictedTo) {
                         adminBadge = ` <span style="color:red;font-size:0.7em">(Restricted)</span>`;
                     }
+
+                    // Make draggable in Edit Mode
+                    li.draggable = true;
+                    li.classList.add('draggable');
+                    li.dataset.categoryId = category.id;
+                    li.dataset.itemIndex = itemIndex;
+
+                    li.addEventListener('dragstart', (e) => {
+                        li.classList.add('dragging');
+                        e.dataTransfer.setData('text/plain', JSON.stringify({
+                            categoryId: category.id,
+                            itemIndex: itemIndex
+                        }));
+                        e.dataTransfer.effectAllowed = 'move';
+                    });
+
+                    li.addEventListener('dragend', () => {
+                        li.classList.remove('dragging');
+                        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                    });
+
+                    li.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        li.classList.add('drag-over');
+                    });
+
+                    li.addEventListener('dragleave', () => {
+                        li.classList.remove('drag-over');
+                    });
+
+                    li.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        li.classList.remove('drag-over');
+
+                        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                        const fromCatId = data.categoryId;
+                        const fromIndex = data.itemIndex;
+                        const toCatId = category.id;
+                        const toIndex = itemIndex;
+
+                        // Only allow reorder within same category
+                        if (fromCatId === toCatId && fromIndex !== toIndex) {
+                            const cat = localWikiData.categories.find(c => c.id === fromCatId);
+                            if (cat) {
+                                const [movedItem] = cat.items.splice(fromIndex, 1);
+                                cat.items.splice(toIndex, 0, movedItem);
+                                persistData();
+                                renderHome(document.getElementById('contentGrid'));
+                            }
+                        }
+                    });
                 }
 
                 a.innerHTML = `

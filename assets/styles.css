@@ -673,3 +673,38 @@ footer {
     margin-left: 8px;
     vertical-align: middle;
 }
+/* Drag and Drop Styles */
+.item-list li.draggable {
+    cursor: grab;
+}
+
+.item-list li.draggable:active {
+    cursor: grabbing;
+}
+
+.item-list li.dragging {
+    opacity: 0.5;
+    border: 2px dashed var(--accent-blue);
+}
+
+.item-list li.drag-over {
+    border-top: 3px solid var(--accent-blue);
+}
+
+/* Category Drag and Drop Styles */
+.category-group.draggable-cat {
+    cursor: grab;
+}
+
+.category-group.draggable-cat:active {
+    cursor: grabbing;
+}
+
+.category-group.dragging-cat {
+    opacity: 0.5;
+    border: 2px dashed var(--accent-blue);
+}
+
+.category-group.drag-over-cat {
+    border-top: 4px solid var(--accent-blue);
+}

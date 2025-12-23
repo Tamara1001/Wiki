@@ -12,8 +12,8 @@ const users = [
 ];
 
 const wikiData = {
-    "heroTitle": "Welcome to the Wiki",
-    "heroSubtitle": "The ultimate resource for adventurers.",
+    "heroTitle": "Rolleandou Wiki",
+    "heroSubtitle": "Prototipo de Wiki de Rolleandou!",
     "categories": [
         {
             "id": "new-category-1766381647143",

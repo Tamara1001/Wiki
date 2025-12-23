@@ -242,11 +242,37 @@ function createFloatingToolbar() {
         hideFloatingToolbar();
     });
 
+    // Prevent toolbar from closing when interacting with it
+    toolbar.addEventListener('mousedown', (e) => {
+        toolbarInteracting = true;
+        e.preventDefault(); // Prevent blur on editable element
+    });
+
+    toolbar.addEventListener('mouseup', () => {
+        setTimeout(() => {
+            toolbarInteracting = false;
+            if (activeEditableField) activeEditableField.focus();
+        }, 50);
+    });
+
+    // Special handling for select dropdown
+    colorSelect.addEventListener('mousedown', (e) => {
+        toolbarInteracting = true;
+    });
+
+    colorSelect.addEventListener('focus', () => {
+        toolbarInteracting = true;
+    });
+
+    colorSelect.addEventListener('blur', () => {
+        setTimeout(() => {
+            toolbarInteracting = false;
+            if (activeEditableField) activeEditableField.focus();
+        }, 100);
+    });
+
     document.body.appendChild(toolbar);
     floatingToolbar = toolbar;
-
-    // Setup interaction tracking
-    setupToolbarInteractions();
 
     return toolbar;
 }
@@ -301,26 +327,6 @@ function makeRichEditable(element, options = {}) {
     if (options.onInput) {
         element.addEventListener('input', options.onInput);
     }
-}
-
-// Setup toolbar interaction tracking (called after toolbar is created)
-function setupToolbarInteractions() {
-    if (!floatingToolbar) return;
-
-    // Track when user is interacting with toolbar
-    floatingToolbar.addEventListener('mousedown', () => {
-        toolbarInteracting = true;
-    });
-
-    floatingToolbar.addEventListener('mouseup', () => {
-        setTimeout(() => { toolbarInteracting = false; }, 100);
-    });
-
-    // Prevent blur when clicking on toolbar
-    floatingToolbar.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (activeEditableField) activeEditableField.focus();
-    });
 }
 // ==================== END RICH TEXT TOOLBAR ====================
 

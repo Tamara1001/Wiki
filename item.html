@@ -92,19 +92,10 @@
         </div>
     </div>
 
-    <!-- Load data.js with cache-busting to ensure fresh data -->
+    <!-- Cache-busting script loader -->
     <script>
-        (function () {
-            var script = document.createElement('script');
-            script.src = 'assets/data.js?v=' + Date.now();
-            script.onload = function () {
-                // Load main script after data is ready
-                var mainScript = document.createElement('script');
-                mainScript.src = 'assets/script.js?v=' + Date.now();
-                document.body.appendChild(mainScript);
-            };
-            document.body.appendChild(script);
-        })();
+        document.write('<script src="assets/data.js?v=' + Date.now() + '"><\\/script>');
+        document.write('<script src="assets/script.js?v=' + Date.now() + '"><\\/script>');
     </script>
 </body>
 

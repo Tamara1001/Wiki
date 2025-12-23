@@ -74,6 +74,14 @@ const wikiData = {
                     "tags": [
                         "New"
                     ]
+                },
+                {
+                    "id": "new-item-1766466607678",
+                    "name": "New Item",
+                    "description": "Item without description",
+                    "tags": [
+                        "New"
+                    ]
                 }
             ],
             "description": "Estadisticas de Rolleandou lalala"

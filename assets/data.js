@@ -12,7 +12,7 @@ const users = [
 ];
 
 const wikiData = {
-    "heroTitle": "Rolleandou Wiki",
+    "heroTitle": "<font color=\"#f44336\">Rolleandou </font><span style=\"font-weight: normal;\"><font color=\"#ffffff\">Wiki</font></span>",
     "heroSubtitle": "Prototipo de Wiki de Rolleandou!",
     "categories": [
         {

@@ -1034,6 +1034,9 @@ async function uploadToGitHub() {
 
         alert('✅ Changes uploaded to GitHub!\nUpdates will be live in a few seconds.');
         console.log('Uploaded data.js to GitHub');
+
+        // Clear localStorage cache so next page load uses fresh data from GitHub
+        localStorage.removeItem('modifiedWikiData');
     } catch (error) {
         alert('❌ Upload failed: ' + error.message);
         console.error('GitHub upload error:', error);

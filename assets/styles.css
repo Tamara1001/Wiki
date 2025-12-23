@@ -941,3 +941,19 @@ footer {
     border-color: var(--accent-primary);
     box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.1);
 }
+
+/* Override gradient text for editable elements so colors can be changed */
+.rich-editable {
+    -webkit-text-fill-color: unset !important;
+    background: none !important;
+    background-clip: unset !important;
+    -webkit-background-clip: unset !important;
+}
+
+/* Hero title editable - override gradient */
+.hero h1.rich-editable,
+.item-detail h1.rich-editable {
+    -webkit-text-fill-color: currentColor !important;
+    background: none !important;
+    color: var(--accent-primary);
+}

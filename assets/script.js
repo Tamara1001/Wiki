@@ -245,7 +245,10 @@ function createFloatingToolbar() {
     // Prevent toolbar from closing when interacting with it
     toolbar.addEventListener('mousedown', (e) => {
         toolbarInteracting = true;
-        e.preventDefault(); // Prevent blur on editable element
+        // Only prevent default on buttons, not on select/input elements
+        if (e.target.tagName === 'BUTTON') {
+            e.preventDefault();
+        }
     });
 
     toolbar.addEventListener('mouseup', () => {

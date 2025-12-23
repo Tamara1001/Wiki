@@ -74,6 +74,14 @@ const wikiData = {
                     "tags": [
                         "New"
                     ]
+                },
+                {
+                    "id": "new-item-1766466607678",
+                    "name": "Item test",
+                    "description": "Sincro",
+                    "tags": [
+                        "New"
+                    ]
                 }
             ],
             "description": "Estadisticas de Rolleandou lalala"
@@ -90,6 +98,14 @@ const wikiData = {
                     "description": "No se, no soy Ale :P",
                     "tags": [],
                     "restrictedTo": null
+                },
+                {
+                    "id": "new-item-1766466773086",
+                    "name": "Magia",
+                    "description": "Item without description",
+                    "tags": [
+                        "New"
+                    ]
                 }
             ]
         }

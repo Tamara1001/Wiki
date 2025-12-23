@@ -12,6 +12,8 @@ const users = [
 ];
 
 const wikiData = {
+    "heroTitle": "Welcome to the Wiki",
+    "heroSubtitle": "The ultimate resource for adventurers. Explore classes, items, monsters, and spells.",
     "categories": [
         {
             "id": "new-category-1766381647143",

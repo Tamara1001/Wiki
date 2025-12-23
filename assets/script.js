@@ -447,12 +447,9 @@ function renderHome(container) {
             // Show hero on homepage
             heroSection.style.display = '';
 
-            // Load saved hero text from localStorage
-            const savedHeroTitle = localStorage.getItem('heroTitle');
-            const savedHeroSubtitle = localStorage.getItem('heroSubtitle');
-
-            if (savedHeroTitle) heroTitle.textContent = savedHeroTitle;
-            if (savedHeroSubtitle) heroSubtitle.textContent = savedHeroSubtitle;
+            // Load saved hero text from localWikiData (synced with data.js)
+            if (localWikiData.heroTitle) heroTitle.textContent = localWikiData.heroTitle;
+            if (localWikiData.heroSubtitle) heroSubtitle.textContent = localWikiData.heroSubtitle;
 
             if (currentUser && currentUser.role === 'admin' && isEditMode) {
                 heroTitle.contentEditable = 'true';
@@ -831,14 +828,14 @@ function renderHome(container) {
 function saveAllChanges() {
     let changesMade = 0;
 
-    // Save Hero Text
+    // Save Hero Text to localWikiData (will be synced to data.js on upload)
     const heroTitle = document.getElementById('heroTitle');
     const heroSubtitle = document.getElementById('heroSubtitle');
 
     if (heroTitle && heroTitle.dataset.original !== undefined) {
         const newTitle = heroTitle.textContent.trim();
         if (newTitle !== heroTitle.dataset.original) {
-            localStorage.setItem('heroTitle', newTitle);
+            localWikiData.heroTitle = newTitle;
             heroTitle.dataset.original = newTitle;
             changesMade++;
         }
@@ -847,7 +844,7 @@ function saveAllChanges() {
     if (heroSubtitle && heroSubtitle.dataset.original !== undefined) {
         const newSubtitle = heroSubtitle.textContent.trim();
         if (newSubtitle !== heroSubtitle.dataset.original) {
-            localStorage.setItem('heroSubtitle', newSubtitle);
+            localWikiData.heroSubtitle = newSubtitle;
             heroSubtitle.dataset.original = newSubtitle;
             changesMade++;
         }
@@ -973,7 +970,12 @@ function downloadChanges() {
     // Include users array (unchanged) and wikiData (current state from localWikiData)
 
     const usersStr = JSON.stringify(users, null, 4);
-    const wikiDataStr = JSON.stringify({ categories: localWikiData.categories }, null, 4);
+    const wikiDataObj = {
+        heroTitle: localWikiData.heroTitle || 'Welcome to the Wiki',
+        heroSubtitle: localWikiData.heroSubtitle || 'The ultimate resource for adventurers.',
+        categories: localWikiData.categories
+    };
+    const wikiDataStr = JSON.stringify(wikiDataObj, null, 4);
 
     const fileContent = `const users = ${usersStr};
 
@@ -1004,7 +1006,12 @@ async function uploadToGitHub() {
 
     // Build file content (same as downloadChanges)
     const usersStr = JSON.stringify(users, null, 4);
-    const wikiDataStr = JSON.stringify({ categories: localWikiData.categories }, null, 4);
+    const wikiDataObj = {
+        heroTitle: localWikiData.heroTitle || 'Welcome to the Wiki',
+        heroSubtitle: localWikiData.heroSubtitle || 'The ultimate resource for adventurers.',
+        categories: localWikiData.categories
+    };
+    const wikiDataStr = JSON.stringify(wikiDataObj, null, 4);
     const fileContent = `const users = ${usersStr};\n\nconst wikiData = ${wikiDataStr};\n`;
 
     // Base64 encode for GitHub API

@@ -133,6 +133,17 @@ function createImageDisplay(imageUrl) {
     return img;
 }
 
+// Escape HTML special characters to prevent injection in attributes
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 // -- AUTHENTICATION --
 
 async function hashPassword(password) {
@@ -1663,7 +1674,7 @@ function renderItemDetail(container) {
                             <span class="toolbar-divider"></span>
                             <button type="button" data-cmd="removeFormat" title="Clear Formatting">✕</button>
                         </div>
-                        <div class="inline-editable rich-text-content" id="item-desc-edit" contenteditable="true" data-field="description" data-original="${foundItem.description}" style="min-height: 150px;">${foundItem.description}</div>
+                        <div class="inline-editable rich-text-content" id="item-desc-edit" contenteditable="true" data-field="description" data-original="${escapeHtml(foundItem.description)}" style="min-height: 150px;">${foundItem.description}</div>
                     </div>
                     
                     <div style="margin-top: 20px; padding: 15px; background: var(--bg-dark); border-radius: 8px;">

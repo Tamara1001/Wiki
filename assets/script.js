@@ -27,17 +27,22 @@ let localWikiData = null; // Stores modified data
 let isEditMode = false; // Toggle for admin edit controls
 
 // Initialize wiki data from storage if available
+// Only use localStorage cache if admin is in an active edit session
 function loadWikiData() {
+    const isAdminEditSession = sessionStorage.getItem('isEditMode') === 'true';
     const stored = localStorage.getItem('modifiedWikiData');
-    if (stored) {
+
+    if (stored && isAdminEditSession) {
+        // Admin in edit mode - use localStorage to preserve unsaved changes
         try {
             localWikiData = JSON.parse(stored);
         } catch (e) {
             console.error('Failed to parse local wiki data', e);
-            localWikiData = JSON.parse(JSON.stringify(wikiData)); // Fallback to copy of original
+            localWikiData = JSON.parse(JSON.stringify(wikiData));
         }
     } else {
-        localWikiData = JSON.parse(JSON.stringify(wikiData)); // Deep copy original data
+        // Regular viewing - always use fresh data from data.js (GitHub)
+        localWikiData = JSON.parse(JSON.stringify(wikiData));
     }
 }
 

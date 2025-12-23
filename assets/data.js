@@ -90,6 +90,14 @@ const wikiData = {
                     "tags": [
                         "New"
                     ]
+                },
+                {
+                    "id": "new-item-1766470381859",
+                    "name": "3",
+                    "description": "Item without description",
+                    "tags": [
+                        "New"
+                    ]
                 }
             ],
             "description": "Estadisticas de Rolleandou lalalaa"

@@ -102,8 +102,20 @@
         </div>
     </div>
 
-    <script src="assets/data.js"></script>
-    <script src="assets/script.js"></script>
+    <!-- Load data.js with cache-busting to ensure fresh data from GitHub -->
+    <script>
+        (function () {
+            var script = document.createElement('script');
+            script.src = 'assets/data.js?v=' + Date.now();
+            script.onload = function () {
+                // Load script.js after data.js is loaded
+                var mainScript = document.createElement('script');
+                mainScript.src = 'assets/script.js?v=' + Date.now();
+                document.body.appendChild(mainScript);
+            };
+            document.body.appendChild(script);
+        })();
+    </script>
 </body>
 
 </html>

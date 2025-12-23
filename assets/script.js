@@ -144,6 +144,149 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+// ==================== UNIFIED RICH TEXT TOOLBAR ====================
+// Floating toolbar that appears when editing any rich text field
+
+let floatingToolbar = null;
+let activeEditableField = null;
+
+function createFloatingToolbar() {
+    if (floatingToolbar) return floatingToolbar;
+
+    const toolbar = document.createElement('div');
+    toolbar.id = 'floatingRichToolbar';
+    toolbar.className = 'floating-rich-toolbar';
+    toolbar.style.cssText = `
+        position: fixed;
+        top: -100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--bg-card, #1e1e2e);
+        border: 1px solid var(--border-color, #333);
+        border-radius: 8px;
+        padding: 8px 12px;
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        z-index: 10000;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        transition: top 0.2s ease, opacity 0.2s ease;
+        opacity: 0;
+    `;
+
+    toolbar.innerHTML = `
+        <button type="button" data-cmd="bold" title="Bold (Ctrl+B)" style="font-weight:bold;">B</button>
+        <button type="button" data-cmd="italic" title="Italic (Ctrl+I)" style="font-style:italic;">I</button>
+        <button type="button" data-cmd="underline" title="Underline (Ctrl+U)" style="text-decoration:underline;">U</button>
+        <button type="button" data-cmd="strikeThrough" title="Strikethrough" style="text-decoration:line-through;">S</button>
+        <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
+        <select id="floatingColorSelect" title="Text Color" style="padding:4px;background:#333;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">
+            <option value="">🎨</option>
+            <option value="#ffffff">White</option>
+            <option value="#888888">Gray</option>
+            <option value="#000000">Black</option>
+            <option value="#f44336">Red</option>
+            <option value="#ff9800">Orange</option>
+            <option value="#ffeb3b">Yellow</option>
+            <option value="#4CAF50">Green</option>
+            <option value="#2196F3">Blue</option>
+            <option value="#9c27b0">Violet</option>
+            <option value="custom">Custom...</option>
+        </select>
+        <input type="color" id="floatingCustomColor" style="width:0;height:0;opacity:0;position:absolute;">
+        <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
+        <button type="button" data-cmd="removeFormat" title="Clear Formatting">✕</button>
+    `;
+
+    // Style toolbar buttons
+    toolbar.querySelectorAll('button').forEach(btn => {
+        btn.style.cssText = 'padding:6px 10px;background:#333;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;font-size:14px;';
+        btn.onmouseover = () => btn.style.background = '#444';
+        btn.onmouseout = () => btn.style.background = '#333';
+    });
+
+    // Command button handlers
+    toolbar.querySelectorAll('button[data-cmd]').forEach(btn => {
+        btn.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // Prevent losing focus
+            const cmd = btn.dataset.cmd;
+            document.execCommand(cmd, false, null);
+            if (activeEditableField) activeEditableField.focus();
+        });
+    });
+
+    // Color select handler
+    const colorSelect = toolbar.querySelector('#floatingColorSelect');
+    const customColor = toolbar.querySelector('#floatingCustomColor');
+
+    colorSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'custom') {
+            customColor.click();
+            e.target.value = '';
+        } else if (e.target.value) {
+            document.execCommand('foreColor', false, e.target.value);
+            if (activeEditableField) activeEditableField.focus();
+            e.target.value = '';
+        }
+    });
+
+    customColor.addEventListener('input', (e) => {
+        document.execCommand('foreColor', false, e.target.value);
+        if (activeEditableField) activeEditableField.focus();
+    });
+
+    document.body.appendChild(toolbar);
+    floatingToolbar = toolbar;
+    return toolbar;
+}
+
+function showFloatingToolbar(element) {
+    if (!floatingToolbar) createFloatingToolbar();
+    activeEditableField = element;
+
+    floatingToolbar.style.top = '70px';
+    floatingToolbar.style.opacity = '1';
+}
+
+function hideFloatingToolbar() {
+    if (floatingToolbar) {
+        floatingToolbar.style.top = '-100px';
+        floatingToolbar.style.opacity = '0';
+    }
+    activeEditableField = null;
+}
+
+// Make an element rich-text editable
+function makeRichEditable(element, options = {}) {
+    if (!element) return;
+
+    element.contentEditable = 'true';
+    element.classList.add('rich-editable');
+    element.style.outline = 'none';
+
+    element.addEventListener('focus', () => {
+        showFloatingToolbar(element);
+        element.style.background = 'rgba(0, 212, 170, 0.1)';
+        element.style.borderRadius = '4px';
+    });
+
+    element.addEventListener('blur', () => {
+        // Delay hide to allow toolbar button clicks
+        setTimeout(() => {
+            if (activeEditableField === element) {
+                hideFloatingToolbar();
+            }
+        }, 200);
+        element.style.background = '';
+    });
+
+    // Track changes
+    if (options.onInput) {
+        element.addEventListener('input', options.onInput);
+    }
+}
+// ==================== END RICH TEXT TOOLBAR ====================
+
 // -- AUTHENTICATION --
 
 async function hashPassword(password) {
@@ -517,35 +660,21 @@ function renderHome(container) {
             heroSection.style.display = '';
 
             // Load saved hero text from localWikiData (synced with data.js)
-            if (localWikiData.heroTitle) heroTitle.textContent = localWikiData.heroTitle;
-            if (localWikiData.heroSubtitle) heroSubtitle.textContent = localWikiData.heroSubtitle;
+            if (localWikiData.heroTitle) heroTitle.innerHTML = localWikiData.heroTitle;
+            if (localWikiData.heroSubtitle) heroSubtitle.innerHTML = localWikiData.heroSubtitle;
 
             if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                heroTitle.contentEditable = 'true';
-                heroTitle.className = 'inline-editable';
+                // Use unified rich text editing
                 heroTitle.dataset.field = 'heroTitle';
-                heroTitle.dataset.original = heroTitle.textContent;
+                heroTitle.dataset.original = heroTitle.innerHTML;
+                makeRichEditable(heroTitle);
 
-                heroSubtitle.contentEditable = 'true';
-                heroSubtitle.className = 'inline-editable';
                 heroSubtitle.dataset.field = 'heroSubtitle';
-                heroSubtitle.dataset.original = heroSubtitle.textContent;
-
-                // Track changes
-                [heroTitle, heroSubtitle].forEach(el => {
-                    el.addEventListener('input', () => {
-                        if (el.textContent !== el.dataset.original) {
-                            el.classList.add('changed');
-                        } else {
-                            el.classList.remove('changed');
-                        }
-                    });
-                });
+                heroSubtitle.dataset.original = heroSubtitle.innerHTML;
+                makeRichEditable(heroSubtitle);
             } else {
                 heroTitle.contentEditable = 'false';
-                heroTitle.className = '';
                 heroSubtitle.contentEditable = 'false';
-                heroSubtitle.className = '';
             }
         }
     }
@@ -711,23 +840,14 @@ function renderHome(container) {
                 descP.style.cssText = 'color: var(--text-secondary); margin-bottom: 20px; font-style: italic;';
 
                 if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                    // Inline editable description
-                    descP.className = 'category-description inline-editable';
-                    descP.contentEditable = 'true';
-                    descP.textContent = category.description || 'Click to add description...';
+                    // Use unified rich text editing
+                    descP.innerHTML = category.description || 'Click to add description...';
                     descP.dataset.catIndex = catIndex;
                     descP.dataset.field = 'description';
                     descP.dataset.original = category.description || '';
-
-                    descP.addEventListener('input', () => {
-                        if (descP.textContent !== descP.dataset.original) {
-                            descP.classList.add('changed');
-                        } else {
-                            descP.classList.remove('changed');
-                        }
-                    });
+                    makeRichEditable(descP);
                 } else {
-                    descP.textContent = category.description || 'No description.';
+                    descP.innerHTML = category.description || 'No description.';
                 }
 
                 catGroup.appendChild(descP);
@@ -954,7 +1074,7 @@ function saveAllChanges() {
     const heroSubtitle = document.getElementById('heroSubtitle');
 
     if (heroTitle && heroTitle.dataset.original !== undefined) {
-        const newTitle = heroTitle.textContent.trim();
+        const newTitle = heroTitle.innerHTML;
         if (newTitle !== heroTitle.dataset.original) {
             localWikiData.heroTitle = newTitle;
             heroTitle.dataset.original = newTitle;
@@ -963,7 +1083,7 @@ function saveAllChanges() {
     }
 
     if (heroSubtitle && heroSubtitle.dataset.original !== undefined) {
-        const newSubtitle = heroSubtitle.textContent.trim();
+        const newSubtitle = heroSubtitle.innerHTML;
         if (newSubtitle !== heroSubtitle.dataset.original) {
             localWikiData.heroSubtitle = newSubtitle;
             heroSubtitle.dataset.original = newSubtitle;
@@ -971,23 +1091,26 @@ function saveAllChanges() {
         }
     }
 
-    // Collect all inline-editable elements with changes (categories)
-    document.querySelectorAll('.inline-editable').forEach(el => {
+    // Collect all editable elements with changes (categories)
+    document.querySelectorAll('.inline-editable, .rich-editable').forEach(el => {
         const catIndex = parseInt(el.dataset.catIndex);
         const field = el.dataset.field;
-        const newValue = el.tagName === 'INPUT' ? el.value.trim() : el.textContent.trim();
+        // Use innerHTML for rich-editable, textContent for simple inputs
+        const isRichText = el.classList.contains('rich-editable') || el.contentEditable === 'true';
+        const newValue = el.tagName === 'INPUT' ? el.value.trim() : (isRichText ? el.innerHTML : el.textContent.trim());
         const original = el.dataset.original;
 
         if (newValue !== original && !isNaN(catIndex)) {
             const category = localWikiData.categories[catIndex];
             if (category) {
                 if (field === 'name') {
-                    category.name = newValue;
+                    category.name = el.textContent.trim(); // Names should stay plain text
                     changesMade++;
                 } else if (field === 'description') {
                     category.description = newValue;
                     changesMade++;
                 }
+                el.dataset.original = newValue;
             }
         }
     });

@@ -1663,14 +1663,18 @@ function renderItemDetail(container) {
                             <span class="toolbar-divider"></span>
                             <select id="textColorSelect" title="Text Color">
                                 <option value="">Color</option>
-                                <option value="#00d4aa">Primary</option>
-                                <option value="#9c27b0">Purple</option>
+                                <option value="#ffffff">White</option>
+                                <option value="#888888">Gray</option>
+                                <option value="#000000">Black</option>
                                 <option value="#f44336">Red</option>
                                 <option value="#ff9800">Orange</option>
+                                <option value="#ffeb3b">Yellow</option>
                                 <option value="#4CAF50">Green</option>
                                 <option value="#2196F3">Blue</option>
-                                <option value="#ffffff">White</option>
+                                <option value="#9c27b0">Violet</option>
+                                <option value="custom">Custom...</option>
                             </select>
+                            <input type="color" id="customColorPicker" style="width: 0; height: 0; opacity: 0; position: absolute;" title="Pick custom color">
                             <span class="toolbar-divider"></span>
                             <button type="button" data-cmd="removeFormat" title="Clear Formatting">✕</button>
                         </div>
@@ -1727,12 +1731,25 @@ function renderItemDetail(container) {
             });
 
             // Color picker handler
-            document.getElementById('textColorSelect').addEventListener('change', (e) => {
-                if (e.target.value) {
+            const colorSelect = document.getElementById('textColorSelect');
+            const customColorPicker = document.getElementById('customColorPicker');
+
+            colorSelect.addEventListener('change', (e) => {
+                if (e.target.value === 'custom') {
+                    // Open the color wheel picker
+                    customColorPicker.click();
+                    e.target.value = ''; // Reset select
+                } else if (e.target.value) {
                     document.execCommand('foreColor', false, e.target.value);
                     document.getElementById('item-desc-edit').focus();
                     e.target.value = ''; // Reset to default
                 }
+            });
+
+            // Custom color wheel handler
+            customColorPicker.addEventListener('input', (e) => {
+                document.execCommand('foreColor', false, e.target.value);
+                document.getElementById('item-desc-edit').focus();
             });
 
             // Add Hidden Info button

@@ -1,3 +1,11 @@
+// GitHub Configuration for direct uploads
+const GITHUB_CONFIG = {
+    owner: 'Tamara1001',
+    repo: 'Wiki',
+    filePath: 'assets/data.js',
+    branch: 'main'
+};
+
 // DOM Elements
 const sidebar = document.getElementById('sidebar');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -769,11 +777,11 @@ function renderHome(container) {
         }
     }
 
-    // Add floating Save All and Download buttons (Edit Mode only)
+    // Add floating Save All and Upload Online buttons (Edit Mode only)
     const existingSaveAllBtn = document.getElementById('saveAllBtn');
     if (existingSaveAllBtn) existingSaveAllBtn.remove();
-    const existingDownloadBtn = document.getElementById('floatingDownloadBtn');
-    if (existingDownloadBtn) existingDownloadBtn.remove();
+    const existingUploadBtn = document.getElementById('floatingUploadBtn');
+    if (existingUploadBtn) existingUploadBtn.remove();
 
     if (currentUser && currentUser.role === 'admin' && isEditMode) {
         const saveAllBtn = document.createElement('button');
@@ -783,17 +791,17 @@ function renderHome(container) {
         saveAllBtn.addEventListener('click', saveAllChanges);
         document.body.appendChild(saveAllBtn);
 
-        // Add Download button next to Save All
-        const existingDownloadBtn = document.getElementById('floatingDownloadBtn');
-        if (existingDownloadBtn) existingDownloadBtn.remove();
+        // Add Upload Online button next to Save All
+        const existingUploadBtn = document.getElementById('floatingUploadBtn');
+        if (existingUploadBtn) existingUploadBtn.remove();
 
-        const downloadBtn = document.createElement('button');
-        downloadBtn.id = 'floatingDownloadBtn';
-        downloadBtn.className = 'save-all-btn';
-        downloadBtn.style.cssText = 'right: 230px; background: linear-gradient(135deg, #2196F3, #1976D2);';
-        downloadBtn.textContent = '⬇️ Download';
-        downloadBtn.addEventListener('click', downloadChanges);
-        document.body.appendChild(downloadBtn);
+        const uploadBtn = document.createElement('button');
+        uploadBtn.id = 'floatingUploadBtn';
+        uploadBtn.className = 'save-all-btn';
+        uploadBtn.style.cssText = 'right: 230px; background: linear-gradient(135deg, #4CAF50, #2E7D32);';
+        uploadBtn.textContent = '☁️ Upload Online';
+        uploadBtn.addEventListener('click', uploadToGitHub);
+        document.body.appendChild(uploadBtn);
     }
 }
 
@@ -965,6 +973,77 @@ const wikiData = ${wikiDataStr};
     URL.revokeObjectURL(url);
 
     console.log('Downloaded data.js');
+}
+
+async function uploadToGitHub() {
+    const token = localStorage.getItem('githubToken');
+    if (!token) {
+        alert('GitHub token not configured.\n\nSet it via browser console:\nlocalStorage.setItem("githubToken", "YOUR_TOKEN")');
+        return;
+    }
+
+    // Build file content (same as downloadChanges)
+    const usersStr = JSON.stringify(users, null, 4);
+    const wikiDataStr = JSON.stringify({ categories: localWikiData.categories }, null, 4);
+    const fileContent = `const users = ${usersStr};\n\nconst wikiData = ${wikiDataStr};\n`;
+
+    // Base64 encode for GitHub API
+    const contentBase64 = btoa(unescape(encodeURIComponent(fileContent)));
+
+    // GitHub API URL
+    const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.filePath}`;
+
+    try {
+        // Show loading state
+        const uploadBtn = document.getElementById('floatingUploadBtn');
+        if (uploadBtn) {
+            uploadBtn.textContent = '⏳ Uploading...';
+            uploadBtn.disabled = true;
+        }
+
+        // Get current file SHA (required for updates)
+        const getRes = await fetch(apiUrl, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!getRes.ok && getRes.status !== 404) {
+            throw new Error(`Failed to get file info: ${getRes.status}`);
+        }
+
+        const currentSha = getRes.ok ? (await getRes.json()).sha : undefined;
+
+        // Update file via PUT request
+        const updateRes = await fetch(apiUrl, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: `Update wiki data - ${new Date().toLocaleString()}`,
+                content: contentBase64,
+                sha: currentSha,
+                branch: GITHUB_CONFIG.branch
+            })
+        });
+
+        if (!updateRes.ok) {
+            const err = await updateRes.json();
+            throw new Error(err.message || 'Upload failed');
+        }
+
+        alert('✅ Changes uploaded to GitHub!\nUpdates will be live in a few seconds.');
+        console.log('Uploaded data.js to GitHub');
+    } catch (error) {
+        alert('❌ Upload failed: ' + error.message);
+        console.error('GitHub upload error:', error);
+    } finally {
+        const uploadBtn = document.getElementById('floatingUploadBtn');
+        if (uploadBtn) {
+            uploadBtn.textContent = '☁️ Upload Online';
+            uploadBtn.disabled = false;
+        }
+    }
 }
 
 function addCategory() {
@@ -1598,8 +1677,8 @@ function renderItemDetail(container) {
     // Add floating Save All button for item pages (Edit Mode only)
     const existingSaveAllBtn = document.getElementById('saveAllBtn');
     if (existingSaveAllBtn) existingSaveAllBtn.remove();
-    const existingDownloadBtn = document.getElementById('floatingDownloadBtn');
-    if (existingDownloadBtn) existingDownloadBtn.remove();
+    const existingUploadBtn = document.getElementById('floatingUploadBtn');
+    if (existingUploadBtn) existingUploadBtn.remove();
 
     if (currentUser && currentUser.role === 'admin' && isEditMode) {
         const saveAllBtn = document.createElement('button');
@@ -1609,13 +1688,13 @@ function renderItemDetail(container) {
         saveAllBtn.addEventListener('click', saveAllChanges);
         document.body.appendChild(saveAllBtn);
 
-        const downloadBtn = document.createElement('button');
-        downloadBtn.id = 'floatingDownloadBtn';
-        downloadBtn.className = 'save-all-btn';
-        downloadBtn.style.cssText = 'right: 230px; background: linear-gradient(135deg, #2196F3, #1976D2);';
-        downloadBtn.textContent = '⬇️ Download';
-        downloadBtn.addEventListener('click', downloadChanges);
-        document.body.appendChild(downloadBtn);
+        const uploadBtn = document.createElement('button');
+        uploadBtn.id = 'floatingUploadBtn';
+        uploadBtn.className = 'save-all-btn';
+        uploadBtn.style.cssText = 'right: 230px; background: linear-gradient(135deg, #4CAF50, #2E7D32);';
+        uploadBtn.textContent = '☁️ Upload Online';
+        uploadBtn.addEventListener('click', uploadToGitHub);
+        document.body.appendChild(uploadBtn);
     }
 }
 

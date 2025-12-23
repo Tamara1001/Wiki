@@ -962,8 +962,16 @@ footer {
 .hero h1.has-formatting,
 .hero p.has-formatting,
 .item-detail h1.has-formatting {
-    -webkit-text-fill-color: unset !important;
+    -webkit-text-fill-color: currentColor !important;
     background: none !important;
-    background-clip: unset !important;
-    -webkit-background-clip: unset !important;
+    background-clip: border-box !important;
+    -webkit-background-clip: border-box !important;
+    color: inherit !important;
+}
+
+/* Ensure font tags inside formatted elements show their colors */
+.hero h1.has-formatting font,
+.hero p.has-formatting font,
+.item-detail h1.has-formatting font {
+    -webkit-text-fill-color: currentColor !important;
 }

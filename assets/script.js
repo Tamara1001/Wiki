@@ -1258,7 +1258,20 @@ function renderItemDetail(container) {
     }
 
     if (!foundItem) {
-        container.innerHTML = `<h2>Item not found</h2><p>ID: ${itemId}</p><a href="index.html">Return to Home</a>`;
+        container.innerHTML = `
+            <div class="item-detail" style="text-align:center; padding: 40px;">
+                <h2 style="color:var(--accent-blue)">⚠️ Item Not Found</h2>
+                <p style="color:var(--text-secondary); margin: 20px 0;">
+                    This item may have been deleted or moved.<br>
+                    <small>ID: ${itemId}</small>
+                </p>
+                <div style="margin-top: 20px;">
+                    <a href="index.html" class="btn-primary" style="display:inline-block; padding: 10px 20px; text-decoration:none;">Return to Home</a>
+                </div>
+            </div>
+        `;
+        // Clear any stale localStorage to prevent future issues
+        localStorage.removeItem('modifiedWikiData');
         return;
     }
 

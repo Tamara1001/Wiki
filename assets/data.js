@@ -86,25 +86,9 @@ const wikiData = {
                     ]
                 },
                 {
-                    "id": "new-item-1766470179171",
-                    "name": "2",
-                    "description": "Item without description",
-                    "tags": [
-                        "New"
-                    ]
-                },
-                {
-                    "id": "new-item-1766470381859",
-                    "name": "3",
-                    "description": "Item without description",
-                    "tags": [
-                        "New"
-                    ]
-                },
-                {
-                    "id": "new-item-1766470995708",
-                    "name": "4",
-                    "description": "Item without description",
+                    "id": "new-item-1766471761206",
+                    "name": "Test",
+                    "description": "a",
                     "tags": [
                         "New"
                     ]
@@ -124,14 +108,6 @@ const wikiData = {
                     "description": "No se, no soy Ale :P",
                     "tags": [],
                     "restrictedTo": null
-                },
-                {
-                    "id": "new-item-1766468228609",
-                    "name": "Aura",
-                    "description": "Item without description",
-                    "tags": [
-                        "New"
-                    ]
                 }
             ]
         }

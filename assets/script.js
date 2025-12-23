@@ -26,11 +26,19 @@ let currentUser = null; // null = Guest
 let localWikiData = null; // Stores modified data
 let isEditMode = false; // Toggle for admin edit controls
 
-// Initialize wiki data - always load fresh from data.js
+// Initialize wiki data from storage if available
 function loadWikiData() {
-    // Always use fresh data from data.js (loaded via script tag)
-    // This ensures data is synced across devices after GitHub upload
-    localWikiData = JSON.parse(JSON.stringify(wikiData)); // Deep copy
+    const stored = localStorage.getItem('modifiedWikiData');
+    if (stored) {
+        try {
+            localWikiData = JSON.parse(stored);
+        } catch (e) {
+            console.error('Failed to parse local wiki data', e);
+            localWikiData = JSON.parse(JSON.stringify(wikiData)); // Fallback to copy of original
+        }
+    } else {
+        localWikiData = JSON.parse(JSON.stringify(wikiData)); // Deep copy original data
+    }
 }
 
 // Global Save function

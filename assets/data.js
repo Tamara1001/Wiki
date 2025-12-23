@@ -73,7 +73,7 @@ const wikiData = {
                 {
                     "id": "new-item-1766394880600",
                     "name": "Test de colores",
-                    "description": "<font color=\"#f44336\">rojo </font><font color=\"#ff9800\">naranja </font><font color=\"#4caf50\">verde </font><font color=\"#2196f3\">azul </font><font color=\"#9c27b0\">violeta&nbsp;</font><div><font color=\"#ffffff\">sadas<br></font><b style=\"font-size: 17.6px;\">negrita</b><br style=\"font-size: 17.6px;\"><i style=\"font-size: 17.6px;\">italic</i><br style=\"font-size: 17.6px;\"><u style=\"font-size: 17.6px;\">subrayado</u><br style=\"font-size: 17.6px;\"><strike style=\"font-size: 17.6px;\">tachado</strike><font color=\"#ffffff\"></font></div>",
+                    "description": "<font color=\"#f44336\">rojo </font><font color=\"#ff9800\">naranja </font><font color=\"#4caf50\">verde </font><font color=\"#2196f3\">azul </font><font color=\"#9c27b0\">violeta&nbsp;</font><div><font color=\"#ffffff\">sadas<br></font><b style=\"font-size: 17.6px;\">negrita</b><br style=\"font-size: 17.6px;\"><i style=\"font-size: 17.6px;\">italic</i><br style=\"font-size: 17.6px;\"><u style=\"font-size: 17.6px;\">subrayado</u><br style=\"font-size: 17.6px;\"><strike style=\"font-size: 17.6px;\">tachado</strike><font color=\"#ffffff\"></font></div><div><strike style=\"font-size: 17.6px;\"><br></strike></div>",
                     "tags": [
                         "New"
                     ]

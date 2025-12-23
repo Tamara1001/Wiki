@@ -255,7 +255,7 @@ function createFloatingToolbar() {
         setTimeout(() => {
             toolbarInteracting = false;
             if (activeEditableField) activeEditableField.focus();
-        }, 50);
+        }, 600); // Must be > 500ms blur delay
     });
 
     // Special handling for select dropdown
@@ -271,7 +271,7 @@ function createFloatingToolbar() {
         setTimeout(() => {
             toolbarInteracting = false;
             if (activeEditableField) activeEditableField.focus();
-        }, 100);
+        }, 600); // Must be > 500ms blur delay
     });
 
     document.body.appendChild(toolbar);
@@ -314,15 +314,30 @@ function makeRichEditable(element, options = {}) {
     });
 
     element.addEventListener('blur', (e) => {
-        // Check if we're interacting with the toolbar
+        // Don't hide if interacting with toolbar
+        if (toolbarInteracting) {
+            return;
+        }
+
+        // Check if focus is going to the toolbar
+        if (e.relatedTarget && floatingToolbar && floatingToolbar.contains(e.relatedTarget)) {
+            return;
+        }
+
+        // Delay to allow for clicks that don't set relatedTarget (like select options)
         setTimeout(() => {
+            // Recheck if we're now interacting
             if (toolbarInteracting) return;
-            // Check if focus went to toolbar or its children
+            // Check if toolbar has focus
             if (floatingToolbar && floatingToolbar.contains(document.activeElement)) return;
+            // Check if we clicked back into the element
+            if (document.activeElement === element) return;
+
             if (activeEditableField === element) {
                 hideFloatingToolbar();
             }
-        }, 300);
+        }, 500);
+
         element.style.background = '';
     });
 

@@ -101,7 +101,7 @@ const wikiData = {
                 },
                 {
                     "id": "new-item-1766466773086",
-                    "name": "Magia",
+                    "name": "Magiaa",
                     "description": "Item without description",
                     "tags": [
                         "New"

@@ -76,9 +76,9 @@ const wikiData = {
                     ]
                 },
                 {
-                    "id": "new-item-1766466607678",
-                    "name": "Item test",
-                    "description": "Sincro",
+                    "id": "new-item-1766467781705",
+                    "name": "SINCRONIZACIONn",
+                    "description": "AAAA",
                     "tags": [
                         "New"
                     ]

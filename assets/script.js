@@ -195,7 +195,8 @@ function createFloatingToolbar() {
         </select>
         <input type="color" id="floatingCustomColor" style="width:0;height:0;opacity:0;position:absolute;">
         <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
-        <button type="button" data-cmd="removeFormat" title="Clear Formatting">✕</button>
+        <button type="button" data-cmd="removeFormat" title="Clear Formatting">⌫</button>
+        <button type="button" id="closeToolbarBtn" title="Close Toolbar">✕</button>
     `;
 
     // Style toolbar buttons
@@ -235,8 +236,18 @@ function createFloatingToolbar() {
         if (activeEditableField) activeEditableField.focus();
     });
 
+    // Close button handler
+    toolbar.querySelector('#closeToolbarBtn').addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        hideFloatingToolbar();
+    });
+
     document.body.appendChild(toolbar);
     floatingToolbar = toolbar;
+
+    // Setup interaction tracking
+    setupToolbarInteractions();
+
     return toolbar;
 }
 
@@ -256,6 +267,9 @@ function hideFloatingToolbar() {
     activeEditableField = null;
 }
 
+// Flag to prevent toolbar from hiding during interactions
+let toolbarInteracting = false;
+
 // Make an element rich-text editable
 function makeRichEditable(element, options = {}) {
     if (!element) return;
@@ -270,13 +284,16 @@ function makeRichEditable(element, options = {}) {
         element.style.borderRadius = '4px';
     });
 
-    element.addEventListener('blur', () => {
-        // Delay hide to allow toolbar button clicks
+    element.addEventListener('blur', (e) => {
+        // Check if we're interacting with the toolbar
         setTimeout(() => {
+            if (toolbarInteracting) return;
+            // Check if focus went to toolbar or its children
+            if (floatingToolbar && floatingToolbar.contains(document.activeElement)) return;
             if (activeEditableField === element) {
                 hideFloatingToolbar();
             }
-        }, 200);
+        }, 300);
         element.style.background = '';
     });
 
@@ -284,6 +301,26 @@ function makeRichEditable(element, options = {}) {
     if (options.onInput) {
         element.addEventListener('input', options.onInput);
     }
+}
+
+// Setup toolbar interaction tracking (called after toolbar is created)
+function setupToolbarInteractions() {
+    if (!floatingToolbar) return;
+
+    // Track when user is interacting with toolbar
+    floatingToolbar.addEventListener('mousedown', () => {
+        toolbarInteracting = true;
+    });
+
+    floatingToolbar.addEventListener('mouseup', () => {
+        setTimeout(() => { toolbarInteracting = false; }, 100);
+    });
+
+    // Prevent blur when clicking on toolbar
+    floatingToolbar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (activeEditableField) activeEditableField.focus();
+    });
 }
 // ==================== END RICH TEXT TOOLBAR ====================
 

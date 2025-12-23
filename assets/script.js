@@ -242,36 +242,36 @@ function createFloatingToolbar() {
         hideFloatingToolbar();
     });
 
-    // Prevent toolbar from closing when interacting with it
-    toolbar.addEventListener('mousedown', (e) => {
+    // Use hover to track if mouse is over toolbar
+    toolbar.addEventListener('mouseenter', () => {
         toolbarInteracting = true;
-        // Only prevent default on buttons, not on select/input elements
+    });
+
+    toolbar.addEventListener('mouseleave', () => {
+        toolbarInteracting = false;
+        // Refocus the editable field after mouse leaves
+        if (activeEditableField) {
+            activeEditableField.focus();
+        }
+    });
+
+    // Prevent default on buttons to avoid losing selection
+    toolbar.addEventListener('mousedown', (e) => {
         if (e.target.tagName === 'BUTTON') {
             e.preventDefault();
         }
     });
 
-    toolbar.addEventListener('mouseup', () => {
-        setTimeout(() => {
-            toolbarInteracting = false;
-            if (activeEditableField) activeEditableField.focus();
-        }, 600); // Must be > 500ms blur delay
-    });
-
-    // Special handling for select dropdown
-    colorSelect.addEventListener('mousedown', (e) => {
-        toolbarInteracting = true;
-    });
-
+    // Keep interacting flag true while color select has focus
     colorSelect.addEventListener('focus', () => {
         toolbarInteracting = true;
     });
 
     colorSelect.addEventListener('blur', () => {
+        // Small delay to allow click to register
         setTimeout(() => {
-            toolbarInteracting = false;
             if (activeEditableField) activeEditableField.focus();
-        }, 600); // Must be > 500ms blur delay
+        }, 50);
     });
 
     document.body.appendChild(toolbar);
@@ -723,6 +723,20 @@ function renderHome(container) {
             // Load saved hero text from localWikiData (synced with data.js)
             if (localWikiData.heroTitle) heroTitle.innerHTML = localWikiData.heroTitle;
             if (localWikiData.heroSubtitle) heroSubtitle.innerHTML = localWikiData.heroSubtitle;
+
+            // Detect if content has formatting (font tags, spans with style)
+            // Add class to preserve colors even when not in edit mode
+            const hasFormatting = (html) => /<font|<span|style=|color[=:]/i.test(html);
+            if (hasFormatting(heroTitle.innerHTML)) {
+                heroTitle.classList.add('has-formatting');
+            } else {
+                heroTitle.classList.remove('has-formatting');
+            }
+            if (hasFormatting(heroSubtitle.innerHTML)) {
+                heroSubtitle.classList.add('has-formatting');
+            } else {
+                heroSubtitle.classList.remove('has-formatting');
+            }
 
             if (currentUser && currentUser.role === 'admin' && isEditMode) {
                 // Use unified rich text editing

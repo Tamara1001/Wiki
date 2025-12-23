@@ -957,3 +957,13 @@ footer {
     background: none !important;
     color: var(--accent-primary);
 }
+
+/* Preserve custom formatting even when not in edit mode */
+.hero h1.has-formatting,
+.hero p.has-formatting,
+.item-detail h1.has-formatting {
+    -webkit-text-fill-color: unset !important;
+    background: none !important;
+    background-clip: unset !important;
+    -webkit-background-clip: unset !important;
+}

@@ -76,15 +76,15 @@ const wikiData = {
                     ]
                 },
                 {
-                    "id": "new-item-1766466607678",
-                    "name": "SINCRONIZACIONNN",
-                    "description": "Sincro",
+                    "id": "new-item-1766468501258",
+                    "name": "Sincron",
+                    "description": "Item without description",
                     "tags": [
                         "New"
                     ]
                 }
             ],
-            "description": "Estadisticas de Rolleandou lalala"
+            "description": "Estadisticas de Rolleandou lalalaa"
         },
         {
             "id": "new-category-1766393777331",
@@ -109,7 +109,7 @@ const wikiData = {
                 },
                 {
                     "id": "new-item-1766468228609",
-                    "name": "New Item",
+                    "name": "Aura",
                     "description": "Item without description",
                     "tags": [
                         "New"

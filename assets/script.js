@@ -1825,4 +1825,9 @@ if (searchInput) {
     });
 }
 
-document.addEventListener('DOMContentLoaded', initWiki);
+// Initialize - run immediately if DOM ready, otherwise wait
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWiki);
+} else {
+    initWiki();
+}

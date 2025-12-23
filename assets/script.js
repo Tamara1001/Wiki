@@ -358,7 +358,12 @@ document.addEventListener('keydown', (e) => {
 
 // -- RENDER --
 
+let wikiInitialized = false; // Guard against double initialization
+
 function initWiki() {
+    if (wikiInitialized) return; // Prevent double init
+    wikiInitialized = true;
+
     console.log('Script Init Started');
     loadWikiData(); // Ensure data is loaded
 

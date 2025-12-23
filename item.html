@@ -101,7 +101,14 @@
                 // Load script.js after data.js is loaded
                 var mainScript = document.createElement('script');
                 mainScript.src = 'assets/script.js?v=' + Date.now();
+                mainScript.onload = function () {
+                    // DOMContentLoaded already fired, so call initWiki directly
+                    if (typeof initWiki === 'function') initWiki();
+                };
                 document.body.appendChild(mainScript);
+            };
+            script.onerror = function () {
+                console.error('Failed to load data.js');
             };
             document.body.appendChild(script);
         })();

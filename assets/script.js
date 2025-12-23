@@ -75,6 +75,64 @@ function persistData() {
     localStorage.setItem('modifiedWikiData', JSON.stringify(localWikiData));
 }
 
+// Helper function to create image upload element
+function createImageUploader(currentImage, onImageChange) {
+    const container = document.createElement('div');
+    container.className = 'image-upload-container';
+    container.style.cssText = 'width: 64px; height: 64px; flex-shrink: 0; margin-right: 12px; position: relative;';
+
+    const img = document.createElement('img');
+    img.className = 'entity-image';
+    img.style.cssText = 'width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: var(--bg-secondary); border: 2px dashed var(--border-color);';
+    img.src = currentImage || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect fill="%23333" width="64" height="64"/><text x="32" y="36" text-anchor="middle" fill="%23666" font-size="10">No Image</text></svg>';
+    img.alt = 'Image';
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;';
+
+    input.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            // Resize to 64x64
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(tempImg, 0, 0, 64, 64);
+                const base64 = canvas.toDataURL('image/png');
+                img.src = base64;
+                onImageChange(base64);
+            };
+            tempImg.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    container.appendChild(img);
+    container.appendChild(input);
+    container.title = 'Click to upload image (64x64)';
+
+    return container;
+}
+
+// Display-only image (for non-edit mode)
+function createImageDisplay(imageUrl) {
+    if (!imageUrl) return null;
+    const img = document.createElement('img');
+    img.className = 'entity-image';
+    img.style.cssText = 'width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; margin-right: 12px;';
+    img.src = imageUrl;
+    img.alt = 'Image';
+    return img;
+}
+
 // -- AUTHENTICATION --
 
 async function hashPassword(password) {
@@ -578,9 +636,25 @@ function renderHome(container) {
 
             const headerWrapper = document.createElement('div');
             headerWrapper.className = 'category-header-wrapper';
+            headerWrapper.style.cssText = 'display: flex; align-items: center;';
+
+            // Category Image
+            if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                // Editable image uploader
+                const imageUploader = createImageUploader(category.image, (base64) => {
+                    localWikiData.categories[catIndex].image = base64;
+                    persistData();
+                });
+                headerWrapper.appendChild(imageUploader);
+            } else if (category.image) {
+                // Display-only image
+                const imgDisplay = createImageDisplay(category.image);
+                if (imgDisplay) headerWrapper.appendChild(imgDisplay);
+            }
 
             // MAKE HEADER CLICKABLE (or editable in Edit Mode)
             const h2 = document.createElement('h2');
+            h2.style.cssText = 'margin: 0;';
 
             if (currentUser && currentUser.role === 'admin' && isEditMode) {
                 // Inline editable category name
@@ -723,11 +797,47 @@ function renderHome(container) {
                     ? `<span class="item-desc-short">${item.description}</span>`
                     : '';
 
-                a.innerHTML = `
-                    <span class="item-name">${item.name}${adminBadge}</span>
-                    ${descHtml}
-                `;
-                li.appendChild(a);
+                // Find actual item index in category for image updates
+                const actualItemIndex = category.items.findIndex(i => i.id === item.id);
+
+                // Item image
+                const imageHtml = item.image
+                    ? `<img src="${item.image}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;margin-right:10px;flex-shrink:0;">`
+                    : '';
+
+                if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                    // In edit mode, create structured layout with image uploader
+                    li.style.cssText = 'display: flex; align-items: center;';
+
+                    const imageUploader = createImageUploader(item.image, (base64) => {
+                        const catIdx = localWikiData.categories.findIndex(c => c.id === category.id);
+                        if (catIdx !== -1 && actualItemIndex !== -1) {
+                            localWikiData.categories[catIdx].items[actualItemIndex].image = base64;
+                            persistData();
+                        }
+                    });
+                    imageUploader.style.cssText = 'width: 48px; height: 48px; flex-shrink: 0; margin-right: 10px; position: relative;';
+                    imageUploader.querySelector('img').style.cssText = 'width: 48px; height: 48px; object-fit: cover; border-radius: 6px; background: var(--bg-secondary); border: 2px dashed var(--border-color);';
+                    li.appendChild(imageUploader);
+
+                    a.style.cssText = 'flex: 1;';
+                    a.innerHTML = `
+                        <span class="item-name">${item.name}${adminBadge}</span>
+                        ${descHtml}
+                    `;
+                    li.appendChild(a);
+                } else {
+                    // Normal view
+                    a.style.cssText = 'display: flex; align-items: center;';
+                    a.innerHTML = `
+                        ${imageHtml}
+                        <div style="flex:1;">
+                            <span class="item-name">${item.name}${adminBadge}</span>
+                            ${descHtml}
+                        </div>
+                    `;
+                    li.appendChild(a);
+                }
                 list.appendChild(li);
             });
 

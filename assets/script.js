@@ -27,22 +27,32 @@ let localWikiData = null; // Stores modified data
 let isEditMode = false; // Toggle for admin edit controls
 
 // Initialize wiki data from storage if available
-// Only use localStorage cache if admin is in an active edit session
+// Use localStorage cache if: admin is editing OR recent upload (CDN cache delay)
 function loadWikiData() {
     const isAdminEditSession = sessionStorage.getItem('isEditMode') === 'true';
     const stored = localStorage.getItem('modifiedWikiData');
+    const lastUpload = localStorage.getItem('lastUploadTime');
 
-    if (stored && isAdminEditSession) {
-        // Admin in edit mode - use localStorage to preserve unsaved changes
+    // Check if there was a recent upload (within 15 minutes - covers CDN cache delay)
+    const recentUpload = lastUpload && (Date.now() - parseInt(lastUpload)) < 15 * 60 * 1000;
+
+    if (stored && (isAdminEditSession || recentUpload)) {
+        // Admin in edit mode OR recent upload - use localStorage to preserve data
         try {
             localWikiData = JSON.parse(stored);
+            console.log('Using localStorage data (edit mode or recent upload)');
         } catch (e) {
             console.error('Failed to parse local wiki data', e);
             localWikiData = JSON.parse(JSON.stringify(wikiData));
         }
     } else {
-        // Regular viewing - always use fresh data from data.js (GitHub)
+        // Regular viewing - use fresh data from data.js (GitHub)
         localWikiData = JSON.parse(JSON.stringify(wikiData));
+        // Clear old upload timestamp if CDN has had time to refresh
+        if (lastUpload && !recentUpload) {
+            localStorage.removeItem('lastUploadTime');
+            localStorage.removeItem('modifiedWikiData');
+        }
     }
 }
 
@@ -1042,11 +1052,11 @@ async function uploadToGitHub() {
             throw new Error(err.message || 'Upload failed');
         }
 
-        alert('✅ Changes uploaded to GitHub!\nUpdates will be live in a few seconds.');
-        console.log('Uploaded data.js to GitHub');
+        // Store upload timestamp - keep localStorage until GitHub CDN refreshes
+        // CDN can take 1-10 minutes to update, so we keep local data as fallback
+        localStorage.setItem('lastUploadTime', Date.now().toString());
 
-        // Clear localStorage cache so next page load uses fresh data from GitHub
-        localStorage.removeItem('modifiedWikiData');
+        alert('✅ Changes uploaded to GitHub!\n\nNote: GitHub CDN may take 1-10 minutes to refresh.\nYour local data is preserved until then.');
     } catch (error) {
         alert('❌ Upload failed: ' + error.message);
         console.error('GitHub upload error:', error);

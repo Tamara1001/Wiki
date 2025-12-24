@@ -872,51 +872,202 @@ function renderNavigation() {
 
     localWikiData.categories.forEach(category => {
         const li = document.createElement('li');
+
+        // Helper to check if a node has children (subcategories or items)
+        const hasDirectItems = category.items && category.items.length > 0;
+        const hasSubcats = category.subcategories && category.subcategories.length > 0;
+        const hasChildren = hasDirectItems || hasSubcats;
+
+        // Container for Toggle + Link
+        const linkWrapper = document.createElement('div');
+        linkWrapper.style.cssText = 'display: flex; align-items: center; justify-content: flex-start;';
+
         const a = document.createElement('a');
         a.href = `index.html?category=${category.id}`;
         a.innerHTML = category.name;
+        if (/<font|<span|style=|color[=:]/i.test(category.name)) a.classList.add('has-formatting');
+        a.addEventListener('click', () => { if (window.innerWidth <= 768) toggleSidebar(); });
 
-        // Check if name has formatting
-        const hasFormatting = /<font|<span|style=|color[=:]/i.test(category.name);
-        if (hasFormatting) {
-            a.classList.add('has-formatting');
-        }
+        // Expand/Collapse Logic
+        if (hasChildren) {
+            const toggleBtn = document.createElement('button');
+            const expandedState = JSON.parse(localStorage.getItem('sidebarExpandedState') || '{}');
+            const isExpanded = expandedState[category.id];
 
-        a.addEventListener('click', () => {
-            if (window.innerWidth <= 768) toggleSidebar();
-        });
-        li.appendChild(a);
+            toggleBtn.className = 'sidebar-toggle-btn';
+            toggleBtn.innerHTML = isExpanded ? '▼' : '▶';
+            toggleBtn.title = isExpanded ? 'Collapse' : 'Expand';
+            toggleBtn.style.cssText = 'background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.8rem; padding: 2px 8px; margin-right: -5px; margin-left: -5px;';
 
-        // Render subcategories if they exist
-        if (category.subcategories && category.subcategories.length > 0) {
-            const subList = document.createElement('ul');
-            subList.className = 'nav-subcategories';
-            subList.style.cssText = 'margin-left: 15px; margin-top: 4px; border-left: 1px solid var(--border-color); padding-left: 10px;';
+            // Container for Children
+            const childrenContainer = document.createElement('ul');
+            childrenContainer.className = 'nav-children';
+            childrenContainer.style.cssText = `margin-left: 15px; margin-top: 4px; border-left: 1px solid var(--border-color); padding-left: 10px; display: ${isExpanded ? 'block' : 'none'}; list-style: none;`;
 
-            category.subcategories.forEach(subcat => {
-                const subLi = document.createElement('li');
-                const subA = document.createElement('a');
-                subA.href = `index.html?category=${category.id}&subcategory=${subcat.id}`;
-                subA.innerHTML = subcat.name;
-                subA.style.cssText = 'font-size: 0.9em; opacity: 0.85;';
-
-                const subHasFormatting = /<font|<span|style=|color[=:]/i.test(subcat.name);
-                if (subHasFormatting) {
-                    subA.classList.add('has-formatting');
+            toggleBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const isNowExpanded = childrenContainer.style.display === 'none';
+                if (isNowExpanded) {
+                    childrenContainer.style.display = 'block';
+                    toggleBtn.innerHTML = '▼';
+                    expandedState[category.id] = true;
+                } else {
+                    childrenContainer.style.display = 'none';
+                    toggleBtn.innerHTML = '▶';
+                    delete expandedState[category.id];
                 }
-
-                subA.addEventListener('click', () => {
-                    if (window.innerWidth <= 768) toggleSidebar();
-                });
-                subLi.appendChild(subA);
-                subList.appendChild(subLi);
+                localStorage.setItem('sidebarExpandedState', JSON.stringify(expandedState));
             });
 
-            li.appendChild(subList);
+            linkWrapper.appendChild(toggleBtn);
+            linkWrapper.appendChild(a);
+            li.appendChild(linkWrapper);
+
+            // 1. Render Subcategories
+            if (hasSubcats) {
+                category.subcategories.forEach(subcat => {
+                    const subLi = document.createElement('li');
+
+                    const subHasItems = subcat.items && subcat.items.length > 0;
+
+                    const subLinkWrapper = document.createElement('div');
+                    subLinkWrapper.style.cssText = 'display: flex; align-items: center; justify-content: flex-start; padding: 2px 0;';
+
+                    const subA = document.createElement('a');
+                    subA.href = `index.html?category=${category.id}&subcategory=${subcat.id}`;
+                    subA.innerHTML = subcat.name;
+                    subA.style.cssText = 'font-size: 0.95em; opacity: 0.9;';
+                    if (/<font|<span|style=|color[=:]/i.test(subcat.name)) subA.classList.add('has-formatting');
+                    subA.addEventListener('click', () => { if (window.innerWidth <= 768) toggleSidebar(); });
+
+                    if (subHasItems) {
+                        const subToggle = document.createElement('button');
+                        const isSubExpanded = expandedState[subcat.id];
+                        subToggle.innerHTML = isSubExpanded ? '▼' : '▶';
+                        subToggle.style.cssText = 'background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.75rem; padding: 2px 6px; margin-right: 0;';
+
+                        const subItemsContainer = document.createElement('ul');
+                        subItemsContainer.style.cssText = `margin-left: 12px; border-left: 1px solid var(--border-color); padding-left: 8px; display: ${isSubExpanded ? 'block' : 'none'}; list-style: none;`;
+
+                        subToggle.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (subItemsContainer.style.display === 'none') {
+                                subItemsContainer.style.display = 'block';
+                                subToggle.innerHTML = '▼';
+                                expandedState[subcat.id] = true;
+                            } else {
+                                subItemsContainer.style.display = 'none';
+                                subToggle.innerHTML = '▶';
+                                delete expandedState[subcat.id];
+                            }
+                            localStorage.setItem('sidebarExpandedState', JSON.stringify(expandedState));
+                        });
+
+                        subLinkWrapper.appendChild(subToggle);
+                        subLinkWrapper.appendChild(subA);
+                        subLi.appendChild(subLinkWrapper);
+
+                        // Render Items in Subcategory
+                        subcat.items.forEach(item => {
+                            renderSidebarItem(item, subItemsContainer, expandedState);
+                        });
+
+                        subLi.appendChild(subItemsContainer);
+                    } else {
+                        // No items, just link
+                        // Indent to align with toggled ones
+                        subLinkWrapper.style.paddingLeft = '18px';
+                        subLinkWrapper.appendChild(subA);
+                        subLi.appendChild(subLinkWrapper);
+                    }
+                    childrenContainer.appendChild(subLi);
+                });
+            }
+
+            // 2. Render Direct Category Items
+            if (hasDirectItems) {
+                category.items.forEach(item => {
+                    renderSidebarItem(item, childrenContainer, expandedState);
+                });
+            }
+
+            li.appendChild(childrenContainer);
+        } else {
+            // No children at all
+            linkWrapper.style.paddingLeft = '18px'; // Indent to match toggle width
+            linkWrapper.appendChild(a);
+            li.appendChild(linkWrapper);
         }
 
         navList.appendChild(li);
     });
+}
+
+// Helper to render an Item and its Sub-items in sidebar
+function renderSidebarItem(item, container, expandedState) {
+    const li = document.createElement('li');
+    const hasSubItems = item.subItems && item.subItems.length > 0;
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display: flex; align-items: center; justify-content: flex-start; padding: 2px 0;';
+
+    const a = document.createElement('a');
+    a.href = `item.html?id=${item.id}`;
+    a.innerHTML = item.name;
+    a.style.cssText = 'font-size: 0.9em; opacity: 0.8;';
+
+    // Check item restricted/admin
+    // (Optional: add indicator)
+
+    if (hasSubItems) {
+        const toggle = document.createElement('button');
+        const isExpanded = expandedState[item.id];
+        toggle.innerHTML = isExpanded ? '▼' : '▶';
+        toggle.style.cssText = 'background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.7rem; padding: 2px 6px;';
+
+        const subItemsList = document.createElement('ul');
+        subItemsList.style.cssText = `margin-left: 12px; border-left: 1px solid var(--border-color); padding-left: 8px; display: ${isExpanded ? 'block' : 'none'}; list-style: none;`;
+
+        toggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (subItemsList.style.display === 'none') {
+                subItemsList.style.display = 'block';
+                toggle.innerHTML = '▼';
+                expandedState[item.id] = true;
+            } else {
+                subItemsList.style.display = 'none';
+                toggle.innerHTML = '▶';
+                delete expandedState[item.id];
+            }
+            localStorage.setItem('sidebarExpandedState', JSON.stringify(expandedState));
+        });
+
+        wrapper.appendChild(toggle);
+        wrapper.appendChild(a);
+        li.appendChild(wrapper);
+
+        // Render Sub-items
+        item.subItems.forEach((subItem, idx) => {
+            const subLi = document.createElement('li');
+            const subA = document.createElement('a');
+            subA.href = `item.html?id=${item.id}&subitem=${idx}`;
+            subA.innerHTML = subItem.name;
+            subA.style.cssText = 'font-size: 0.85em; opacity: 0.7; display: block; padding: 2px 0 2px 16px;'; // Indent for leaf
+            subLi.appendChild(subA);
+            subItemsList.appendChild(subLi);
+        });
+
+        li.appendChild(subItemsList);
+    } else {
+        wrapper.style.paddingLeft = '18px'; // Indent items without sub-items
+        wrapper.appendChild(a);
+        li.appendChild(wrapper);
+    }
+
+    container.appendChild(li);
 }
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -1012,7 +1163,11 @@ function renderHome(container) {
         // Filter Items based on permissions!
         const visibleItems = category.items.filter(item => hasPermission(item));
 
-        if (visibleItems.length > 0 || (currentUser && currentUser.role === 'admin' && isEditMode)) {
+        // Always show all categories on main page (even empty ones)
+        // On category page (filtered view), always show the filtered category
+        const showCategory = true;
+
+        if (showCategory) {
             const catGroup = document.createElement('div');
             catGroup.className = 'category-group';
             catGroup.id = category.id;
@@ -1134,8 +1289,8 @@ function renderHome(container) {
 
             catGroup.appendChild(headerWrapper);
 
-            // Show Category Description ONLY on Category Page (Filtered View)
-            if (filterCategoryId) {
+            // Show Category Description ONLY on Category Page (not subcategory page)
+            if (filterCategoryId && !filterSubcategoryId) {
                 const descP = document.createElement('p');
                 descP.className = 'category-description';
                 descP.style.cssText = 'color: var(--text-secondary); margin-bottom: 20px; font-style: italic;';
@@ -1154,144 +1309,194 @@ function renderHome(container) {
                 catGroup.appendChild(descP);
             }
 
-            const list = document.createElement('ul');
-            list.className = 'item-list';
+            // ==================== COLLAPSIBLE CONTENT WRAPPER ====================
+            // Only add collapse on main page (not filtered category page)
+            const collapsibleContent = document.createElement('div');
+            collapsibleContent.className = 'category-content';
 
-            visibleItems.forEach((item, itemIndex) => {
-                const li = document.createElement('li');
-                const a = document.createElement('a');
-                a.href = `item.html?id=${item.id}`;
-                a.className = 'item-link';
+            // Check if category is collapsed (stored in localStorage)
+            const collapsedCategories = JSON.parse(localStorage.getItem('collapsedCategories') || '{}');
+            const isCollapsed = !filterCategoryId && collapsedCategories[category.id];
 
-                // Add visual cue for Admin
-                let adminBadge = '';
-                if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                    // Maybe show if it is restricted to others?
-                    if (item.restrictedTo) {
-                        adminBadge = ` <span style="color:red;font-size:0.7em">(Restricted)</span>`;
-                    }
-
-                    // Make draggable in Edit Mode
-                    li.draggable = true;
-                    li.classList.add('draggable');
-                    li.dataset.categoryId = category.id;
-                    li.dataset.itemIndex = itemIndex;
-
-                    li.addEventListener('dragstart', (e) => {
-                        li.classList.add('dragging');
-                        e.dataTransfer.setData('text/plain', JSON.stringify({
-                            categoryId: category.id,
-                            itemIndex: itemIndex
-                        }));
-                        e.dataTransfer.effectAllowed = 'move';
-                    });
-
-                    li.addEventListener('dragend', () => {
-                        li.classList.remove('dragging');
-                        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-                    });
-
-                    li.addEventListener('dragover', (e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        li.classList.add('drag-over');
-                    });
-
-                    li.addEventListener('dragleave', () => {
-                        li.classList.remove('drag-over');
-                    });
-
-                    li.addEventListener('drop', (e) => {
-                        e.preventDefault();
-                        li.classList.remove('drag-over');
-
-                        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                        const fromCatId = data.categoryId;
-                        const fromIndex = data.itemIndex;
-                        const toCatId = category.id;
-                        const toIndex = itemIndex;
-
-                        // Only allow reorder within same category
-                        if (fromCatId === toCatId && fromIndex !== toIndex) {
-                            const cat = localWikiData.categories.find(c => c.id === fromCatId);
-                            if (cat) {
-                                const [movedItem] = cat.items.splice(fromIndex, 1);
-                                cat.items.splice(toIndex, 0, movedItem);
-                                persistData();
-                                renderHome(document.getElementById('contentGrid'));
-                            }
-                        }
-                    });
-                }
-
-                // Show description only on Category Page, not on Main Menu
-                const descHtml = filterCategoryId
-                    ? `<span class="item-desc-short">${item.description}</span>`
-                    : '';
-
-                // Find actual item index in category for image updates
-                const actualItemIndex = category.items.findIndex(i => i.id === item.id);
-
-                // Item image
-                const imageHtml = item.image
-                    ? `<img src="${item.image}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;margin-right:10px;flex-shrink:0;">`
-                    : '';
-
-                if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                    // In edit mode, create structured layout with image uploader
-                    li.style.cssText = 'display: flex; align-items: center;';
-
-                    const imageUploader = createImageUploader(item.image, (base64) => {
-                        const catIdx = localWikiData.categories.findIndex(c => c.id === category.id);
-                        if (catIdx !== -1 && actualItemIndex !== -1) {
-                            localWikiData.categories[catIdx].items[actualItemIndex].image = base64;
-                            persistData();
-                        }
-                    });
-                    imageUploader.style.cssText = 'width: 48px; height: 48px; flex-shrink: 0; margin-right: 10px; position: relative;';
-                    imageUploader.querySelector('img').style.cssText = 'width: 48px; height: 48px; object-fit: cover; border-radius: 6px; background: var(--bg-secondary); border: 2px dashed var(--border-color);';
-                    li.appendChild(imageUploader);
-
-                    a.style.cssText = 'flex: 1;';
-                    a.innerHTML = `
-                        <span class="item-name">${item.name}${adminBadge}</span>
-                        ${descHtml}
-                    `;
-                    li.appendChild(a);
-                } else {
-                    // Normal view
-                    a.style.cssText = 'display: flex; align-items: center;';
-                    a.innerHTML = `
-                        ${imageHtml}
-                        <div style="flex:1;">
-                            <span class="item-name">${item.name}${adminBadge}</span>
-                            ${descHtml}
-                        </div>
-                    `;
-                    li.appendChild(a);
-                }
-                list.appendChild(li);
-            });
-
-            // Add Item button
-            if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                const addItemLi = document.createElement('li');
-                addItemLi.className = 'add-item-card';
-                const addItemBtn = document.createElement('button');
-                addItemBtn.textContent = '+ Add New Item';
-                addItemBtn.onclick = () => {
-                    console.log('Add Item Button Clicked for:', category.id);
-                    addItem(category.id);
-                };
-                addItemLi.appendChild(addItemBtn);
-                list.appendChild(addItemLi);
+            if (isCollapsed) {
+                collapsibleContent.style.display = 'none';
+                catGroup.classList.add('collapsed');
             }
 
-            catGroup.appendChild(list);
+            // Add collapse toggle button (only on main page, not category page)
+            if (!filterCategoryId) {
+                const collapseBtn = document.createElement('button');
+                collapseBtn.className = 'collapse-toggle-btn';
+                collapseBtn.innerHTML = isCollapsed ? '▶' : '▼';
+                collapseBtn.title = isCollapsed ? 'Expand' : 'Collapse';
+                collapseBtn.style.cssText = 'background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1rem; padding: 5px 10px; margin-right: 8px; transition: transform 0.2s;';
+
+                collapseBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isNowCollapsed = collapsibleContent.style.display === 'none';
+
+                    if (isNowCollapsed) {
+                        collapsibleContent.style.display = 'block';
+                        collapseBtn.innerHTML = '▼';
+                        collapseBtn.title = 'Collapse';
+                        catGroup.classList.remove('collapsed');
+                        delete collapsedCategories[category.id];
+                    } else {
+                        collapsibleContent.style.display = 'none';
+                        collapseBtn.innerHTML = '▶';
+                        collapseBtn.title = 'Expand';
+                        catGroup.classList.add('collapsed');
+                        collapsedCategories[category.id] = true;
+                    }
+
+                    localStorage.setItem('collapsedCategories', JSON.stringify(collapsedCategories));
+                });
+
+                // Insert collapse button at the beginning of header
+                headerWrapper.insertBefore(collapseBtn, headerWrapper.firstChild);
+            }
+
+            // ==================== CATEGORY ITEMS LIST ====================
+            // Only show category's direct items when NOT viewing a subcategory page
+            if (!filterSubcategoryId) {
+                const list = document.createElement('ul');
+                list.className = 'item-list';
+
+                visibleItems.forEach((item, itemIndex) => {
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.href = `item.html?id=${item.id}`;
+                    a.className = 'item-link';
+
+                    // Add visual cue for Admin
+                    let adminBadge = '';
+                    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                        // Maybe show if it is restricted to others?
+                        if (item.restrictedTo) {
+                            adminBadge = ` <span style="color:red;font-size:0.7em">(Restricted)</span>`;
+                        }
+
+                        // Make draggable in Edit Mode
+                        li.draggable = true;
+                        li.classList.add('draggable');
+                        li.dataset.categoryId = category.id;
+                        li.dataset.itemIndex = itemIndex;
+
+                        li.addEventListener('dragstart', (e) => {
+                            li.classList.add('dragging');
+                            e.dataTransfer.setData('text/plain', JSON.stringify({
+                                categoryId: category.id,
+                                itemIndex: itemIndex
+                            }));
+                            e.dataTransfer.effectAllowed = 'move';
+                        });
+
+                        li.addEventListener('dragend', () => {
+                            li.classList.remove('dragging');
+                            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                        });
+
+                        li.addEventListener('dragover', (e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            li.classList.add('drag-over');
+                        });
+
+                        li.addEventListener('dragleave', () => {
+                            li.classList.remove('drag-over');
+                        });
+
+                        li.addEventListener('drop', (e) => {
+                            e.preventDefault();
+                            li.classList.remove('drag-over');
+
+                            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                            const fromCatId = data.categoryId;
+                            const fromIndex = data.itemIndex;
+                            const toCatId = category.id;
+                            const toIndex = itemIndex;
+
+                            // Only allow reorder within same category
+                            if (fromCatId === toCatId && fromIndex !== toIndex) {
+                                const cat = localWikiData.categories.find(c => c.id === fromCatId);
+                                if (cat) {
+                                    const [movedItem] = cat.items.splice(fromIndex, 1);
+                                    cat.items.splice(toIndex, 0, movedItem);
+                                    persistData();
+                                    renderHome(document.getElementById('contentGrid'));
+                                }
+                            }
+                        });
+                    }
+
+                    // Only show description on category/subcategory page, not main page
+                    const descHtml = (filterCategoryId || filterSubcategoryId)
+                        ? `<span class="item-desc-short">${item.description || ''}</span>`
+                        : '';
+
+                    // Find actual item index in category for image updates
+                    const actualItemIndex = category.items.findIndex(i => i.id === item.id);
+
+                    const imageHtml = item.image
+                        ? `<img src="${item.image}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;margin-right:10px;flex-shrink:0;">`
+                        : '';
+
+                    // Edit Mode: Show editable image
+                    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                        li.style.display = 'flex';
+                        li.style.alignItems = 'center';
+                        const imageUploader = createImageUploader(item.image, (base64) => {
+                            const catIdx = localWikiData.categories.findIndex(c => c.id === category.id);
+                            if (catIdx !== -1 && actualItemIndex !== -1) {
+                                localWikiData.categories[catIdx].items[actualItemIndex].image = base64;
+                                persistData();
+                            }
+                        });
+                        imageUploader.style.cssText = 'width: 48px; height: 48px; flex-shrink: 0; margin-right: 10px; position: relative;';
+                        imageUploader.querySelector('img').style.cssText = 'width: 48px; height: 48px; object-fit: cover; border-radius: 6px; background: var(--bg-secondary); border: 2px dashed var(--border-color);';
+                        li.appendChild(imageUploader);
+
+                        a.style.cssText = 'flex: 1;';
+                        a.innerHTML = `
+                            <span class="item-name">${item.name}${adminBadge}</span>
+                            ${descHtml}
+                        `;
+                        li.appendChild(a);
+                    } else {
+                        // Normal view
+                        a.style.cssText = 'display: flex; align-items: center;';
+                        a.innerHTML = `
+                            ${imageHtml}
+                            <div style="flex:1;">
+                                <span class="item-name">${item.name}${adminBadge}</span>
+                                ${descHtml}
+                            </div>
+                        `;
+                        li.appendChild(a);
+                    }
+                    list.appendChild(li);
+                });
+
+                // Add Item button
+                if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                    const addItemLi = document.createElement('li');
+                    addItemLi.className = 'add-item-card';
+                    const addItemBtn = document.createElement('button');
+                    addItemBtn.textContent = '+ Add New Item';
+                    addItemBtn.onclick = () => {
+                        console.log('Add Item Button Clicked for:', category.id);
+                        addItem(category.id);
+                    };
+                    addItemLi.appendChild(addItemBtn);
+                    list.appendChild(addItemLi);
+                }
+
+                collapsibleContent.appendChild(list);
+            }
 
             // ==================== RENDER SUBCATEGORIES ====================
-            // Only show subcategories on category page (filtered view)
-            if (filterCategoryId && category.subcategories && category.subcategories.length > 0) {
+            // Show subcategories on both main page and category page
+            if (category.subcategories && category.subcategories.length > 0) {
                 // If filtering by subcategory, only show that one
                 const subcatsToRender = filterSubcategoryId
                     ? category.subcategories.filter(s => s.id === filterSubcategoryId)
@@ -1304,6 +1509,67 @@ function renderHome(container) {
                     subcatGroup.className = 'subcategory-group';
                     subcatGroup.id = subcat.id;
                     subcatGroup.style.cssText = 'margin-top: 30px; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; border-left: 3px solid var(--accent-primary);';
+
+                    // Subcategory Drag and Drop (Edit Mode Only)
+                    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                        subcatGroup.draggable = true;
+                        subcatGroup.classList.add('draggable-subcat');
+                        subcatGroup.dataset.catIndex = catIndex;
+                        subcatGroup.dataset.subcatIndex = actualSubcatIndex;
+
+                        subcatGroup.addEventListener('dragstart', (e) => {
+                            if (e.target !== subcatGroup) return;
+                            e.stopPropagation();
+                            subcatGroup.classList.add('dragging-subcat');
+                            e.dataTransfer.setData('application/subcategory', JSON.stringify({
+                                catIndex: catIndex,
+                                subcatIndex: actualSubcatIndex
+                            }));
+                            e.dataTransfer.effectAllowed = 'move';
+                        });
+
+                        subcatGroup.addEventListener('dragend', () => {
+                            subcatGroup.classList.remove('dragging-subcat');
+                            document.querySelectorAll('.drag-over-subcat').forEach(el => el.classList.remove('drag-over-subcat'));
+                        });
+
+                        subcatGroup.addEventListener('dragover', (e) => {
+                            if (e.dataTransfer.types.includes('application/subcategory')) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.dataTransfer.dropEffect = 'move';
+                                subcatGroup.classList.add('drag-over-subcat');
+                            }
+                        });
+
+                        subcatGroup.addEventListener('dragleave', () => {
+                            subcatGroup.classList.remove('drag-over-subcat');
+                        });
+
+                        subcatGroup.addEventListener('drop', (e) => {
+                            if (!e.dataTransfer.types.includes('application/subcategory')) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            subcatGroup.classList.remove('drag-over-subcat');
+
+                            const data = JSON.parse(e.dataTransfer.getData('application/subcategory'));
+                            const fromCatIndex = data.catIndex;
+                            const fromSubcatIndex = data.subcatIndex;
+                            const toCatIndex = catIndex;
+                            const toSubcatIndex = actualSubcatIndex;
+
+                            // Only allow reorder within same category
+                            if (fromCatIndex === toCatIndex && fromSubcatIndex !== toSubcatIndex) {
+                                const cat = localWikiData.categories[fromCatIndex];
+                                if (cat && cat.subcategories) {
+                                    const [movedSubcat] = cat.subcategories.splice(fromSubcatIndex, 1);
+                                    cat.subcategories.splice(toSubcatIndex, 0, movedSubcat);
+                                    persistData();
+                                    renderHome(document.getElementById('contentGrid'));
+                                }
+                            }
+                        });
+                    }
 
                     // Subcategory Header
                     const subcatHeader = document.createElement('div');
@@ -1349,29 +1615,84 @@ function renderHome(container) {
                         delSubcatBtn.onclick = () => deleteSubcategory(catIndex, actualSubcatIndex);
                         subcatTitle.appendChild(delSubcatBtn);
                     } else {
-                        subcatTitle.innerHTML = subcat.name;
+                        // Make subcategory title a clickable link
+                        const subcatLink = document.createElement('a');
+                        subcatLink.href = `index.html?category=${category.id}&subcategory=${subcat.id}`;
+                        subcatLink.innerHTML = subcat.name;
+                        subcatLink.style.cssText = 'color: inherit; text-decoration: none; cursor: pointer;';
+                        subcatLink.onmouseover = () => subcatLink.style.color = 'var(--accent-primary)';
+                        subcatLink.onmouseout = () => subcatLink.style.color = 'inherit';
+                        subcatTitle.appendChild(subcatLink);
                     }
 
                     subcatHeader.appendChild(subcatTitle);
                     subcatGroup.appendChild(subcatHeader);
 
-                    // Subcategory Description
-                    if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                        const subcatDescP = document.createElement('p');
-                        subcatDescP.className = 'subcategory-description rich-editable';
-                        subcatDescP.style.cssText = 'color: var(--text-secondary); margin-bottom: 15px; font-style: italic;';
-                        subcatDescP.innerHTML = subcat.description || 'Click to add description...';
-                        subcatDescP.dataset.catIndex = catIndex;
-                        subcatDescP.dataset.subcatIndex = actualSubcatIndex;
-                        subcatDescP.dataset.field = 'subcatDescription';
-                        subcatDescP.dataset.original = subcat.description || '';
-                        makeRichEditable(subcatDescP);
-                        subcatGroup.appendChild(subcatDescP);
-                    } else if (subcat.description) {
-                        const subcatDescP = document.createElement('p');
-                        subcatDescP.style.cssText = 'color: var(--text-secondary); margin-bottom: 15px; font-style: italic;';
-                        subcatDescP.innerHTML = subcat.description;
-                        subcatGroup.appendChild(subcatDescP);
+                    // Subcategory Description - only show on category page, not main page
+                    if (filterCategoryId) {
+                        if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                            const subcatDescP = document.createElement('p');
+                            subcatDescP.className = 'subcategory-description rich-editable';
+                            subcatDescP.style.cssText = 'color: var(--text-secondary); margin-bottom: 15px; font-style: italic;';
+                            subcatDescP.innerHTML = subcat.description || 'Click to add description...';
+                            subcatDescP.dataset.catIndex = catIndex;
+                            subcatDescP.dataset.subcatIndex = actualSubcatIndex;
+                            subcatDescP.dataset.field = 'subcatDescription';
+                            subcatDescP.dataset.original = subcat.description || '';
+                            makeRichEditable(subcatDescP);
+                            subcatGroup.appendChild(subcatDescP);
+                        } else if (subcat.description) {
+                            const subcatDescP = document.createElement('p');
+                            subcatDescP.style.cssText = 'color: var(--text-secondary); margin-bottom: 15px; font-style: italic;';
+                            subcatDescP.innerHTML = subcat.description;
+                            subcatGroup.appendChild(subcatDescP);
+                        }
+                    }
+
+                    // ==================== SUBCATEGORY COLLAPSIBLE CONTENT ====================
+                    const subcatCollapsible = document.createElement('div');
+                    subcatCollapsible.className = 'subcategory-content';
+
+                    // Check if subcategory is collapsed
+                    const collapsedSubcats = JSON.parse(localStorage.getItem('collapsedSubcategories') || '{}');
+                    const isSubcatCollapsed = !filterCategoryId && collapsedSubcats[subcat.id];
+
+                    if (isSubcatCollapsed) {
+                        subcatCollapsible.style.display = 'none';
+                        subcatGroup.classList.add('collapsed');
+                    }
+
+                    // Add collapse toggle for subcategory (only on main page)
+                    if (!filterCategoryId) {
+                        const subcatCollapseBtn = document.createElement('button');
+                        subcatCollapseBtn.className = 'collapse-toggle-btn';
+                        subcatCollapseBtn.innerHTML = isSubcatCollapsed ? '▶' : '▼';
+                        subcatCollapseBtn.title = isSubcatCollapsed ? 'Expand' : 'Collapse';
+                        subcatCollapseBtn.style.cssText = 'background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.9rem; padding: 3px 8px; margin-right: 6px; transition: transform 0.2s;';
+
+                        subcatCollapseBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const isNowCollapsed = subcatCollapsible.style.display === 'none';
+
+                            if (isNowCollapsed) {
+                                subcatCollapsible.style.display = 'block';
+                                subcatCollapseBtn.innerHTML = '▼';
+                                subcatCollapseBtn.title = 'Collapse';
+                                subcatGroup.classList.remove('collapsed');
+                                delete collapsedSubcats[subcat.id];
+                            } else {
+                                subcatCollapsible.style.display = 'none';
+                                subcatCollapseBtn.innerHTML = '▶';
+                                subcatCollapseBtn.title = 'Expand';
+                                subcatGroup.classList.add('collapsed');
+                                collapsedSubcats[subcat.id] = true;
+                            }
+
+                            localStorage.setItem('collapsedSubcategories', JSON.stringify(collapsedSubcats));
+                        });
+
+                        // Insert at beginning of header
+                        subcatHeader.insertBefore(subcatCollapseBtn, subcatHeader.firstChild);
                     }
 
                     // Subcategory Items List
@@ -1388,12 +1709,17 @@ function renderHome(container) {
                             ? `<img src="${item.image}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;margin-right:10px;flex-shrink:0;">`
                             : '';
 
+                        // Only show description on category page, not main page
+                        const descHtml = filterCategoryId
+                            ? `<span class="item-desc-short">${item.description}</span>`
+                            : '';
+
                         a.style.cssText = 'display: flex; align-items: center;';
                         a.innerHTML = `
                             ${imageHtml}
                             <div style="flex:1;">
                                 <span class="item-name">${item.name}</span>
-                                <span class="item-desc-short">${item.description}</span>
+                                ${descHtml}
                             </div>
                         `;
                         li.appendChild(a);
@@ -1411,8 +1737,10 @@ function renderHome(container) {
                         subcatItemsList.appendChild(addSubcatItemLi);
                     }
 
-                    subcatGroup.appendChild(subcatItemsList);
-                    catGroup.appendChild(subcatGroup);
+                    // Append items list to subcategory collapsible container
+                    subcatCollapsible.appendChild(subcatItemsList);
+                    subcatGroup.appendChild(subcatCollapsible);
+                    collapsibleContent.appendChild(subcatGroup);
                 });
             }
 
@@ -1423,8 +1751,11 @@ function renderHome(container) {
                 addSubcatBtn.className = 'btn-back';
                 addSubcatBtn.style.cssText = 'margin-top: 20px; padding: 10px 20px; background: linear-gradient(135deg, #9c27b0, #7b1fa2); border: none; color: white;';
                 addSubcatBtn.onclick = () => addSubcategory(category.id);
-                catGroup.appendChild(addSubcatBtn);
+                collapsibleContent.appendChild(addSubcatBtn);
             }
+
+            // Append collapsible content to category group
+            catGroup.appendChild(collapsibleContent);
 
             container.appendChild(catGroup);
         }
@@ -1627,10 +1958,10 @@ function saveAllChanges() {
         }
     }
 
-    // Save Sub-item Edits
-    document.querySelectorAll('.subitem-name-rich, .subitem-desc-rich').forEach(el => {
+    // Save Sub-item Edits (from item page and sub-item detail page)
+    document.querySelectorAll('.subitem-name-rich, .subitem-desc-rich, .subitem-detail-title, .subitem-detail-desc').forEach(el => {
         const itemId = el.dataset.itemId;
-        const subItemIndex = parseInt(el.dataset.subItemIndex);
+        const subItemIndex = parseInt(el.dataset.subitemIndex || el.dataset.subItemIndex);
         const field = el.dataset.field;
 
         if (!itemId || isNaN(subItemIndex) || !field) return;
@@ -2190,6 +2521,17 @@ function renderItemDetail(container) {
         `;
         // Clear any stale localStorage to prevent future issues
         localStorage.removeItem('modifiedWikiData');
+        return;
+    }
+
+    // Check if we're viewing a specific sub-item
+    const subItemParam = params.get('subitem');
+    if (subItemParam !== null && foundItem.subItems && foundItem.subItems[parseInt(subItemParam)]) {
+        const subItemIndex = parseInt(subItemParam);
+        const subItem = foundItem.subItems[subItemIndex];
+
+        // Render sub-item detail page
+        renderSubItemDetail(container, foundItem, foundCategory, foundSubcategory, subItem, subItemIndex, itemId);
         return;
     }
 
@@ -2817,12 +3159,6 @@ function renderSubItems(container, item, itemId) {
     subItemsContainer.id = 'subItemsContainer';
     subItemsContainer.style.cssText = 'margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color);';
 
-    // Title
-    const subItemsTitle = document.createElement('h2');
-    subItemsTitle.style.cssText = 'font-size: 1.3rem; margin-bottom: 15px; color: var(--accent-primary);';
-    subItemsTitle.textContent = '📋 Sub-items';
-    subItemsContainer.appendChild(subItemsTitle);
-
     const subItems = item.subItems || [];
 
     if (subItems.length === 0 && !(currentUser && currentUser.role === 'admin' && isEditMode)) {
@@ -2835,6 +3171,67 @@ function renderSubItems(container, item, itemId) {
         const subItemDiv = document.createElement('div');
         subItemDiv.className = 'sub-item-card';
         subItemDiv.style.cssText = 'background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 3px solid var(--accent-blue);';
+
+        // Sub-item Drag and Drop (Edit Mode Only)
+        if (currentUser && currentUser.role === 'admin' && isEditMode) {
+            subItemDiv.draggable = true;
+            subItemDiv.classList.add('draggable-subitem');
+            subItemDiv.dataset.itemId = itemId;
+            subItemDiv.dataset.subItemIndex = subItemIndex;
+
+            subItemDiv.addEventListener('dragstart', (e) => {
+                if (e.target !== subItemDiv) return;
+                e.stopPropagation();
+                subItemDiv.classList.add('dragging-subitem');
+                e.dataTransfer.setData('application/subitem', JSON.stringify({
+                    parentItemId: itemId,
+                    subItemIndex: subItemIndex
+                }));
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            subItemDiv.addEventListener('dragend', () => {
+                subItemDiv.classList.remove('dragging-subitem');
+                document.querySelectorAll('.drag-over-subitem').forEach(el => el.classList.remove('drag-over-subitem'));
+            });
+
+            subItemDiv.addEventListener('dragover', (e) => {
+                if (e.dataTransfer.types.includes('application/subitem')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
+                    subItemDiv.classList.add('drag-over-subitem');
+                }
+            });
+
+            subItemDiv.addEventListener('dragleave', () => {
+                subItemDiv.classList.remove('drag-over-subitem');
+            });
+
+            subItemDiv.addEventListener('drop', (e) => {
+                if (!e.dataTransfer.types.includes('application/subitem')) return;
+                e.preventDefault();
+                e.stopPropagation();
+                subItemDiv.classList.remove('drag-over-subitem');
+
+                const data = JSON.parse(e.dataTransfer.getData('application/subitem'));
+                const fromParentId = data.parentItemId;
+                const fromIndex = data.subItemIndex;
+                const toParentId = itemId;
+                const toIndex = subItemIndex;
+
+                // Only allow reorder within same parent item
+                if (fromParentId === toParentId && fromIndex !== toIndex) {
+                    const found = findItemById(fromParentId);
+                    if (found && found.item.subItems) {
+                        const [movedSubItem] = found.item.subItems.splice(fromIndex, 1);
+                        found.item.subItems.splice(toIndex, 0, movedSubItem);
+                        persistData();
+                        renderSubItems(container, found.item, itemId);
+                    }
+                }
+            });
+        }
 
         const subItemHeader = document.createElement('div');
         subItemHeader.style.cssText = 'display: flex; align-items: center; margin-bottom: 10px;';
@@ -2881,7 +3278,14 @@ function renderSubItems(container, item, itemId) {
             delBtn.onclick = () => deleteSubItem(itemId, subItemIndex);
             subItemName.appendChild(delBtn);
         } else {
-            subItemName.innerHTML = subItem.name;
+            // Make sub-item name a clickable link
+            const subItemLink = document.createElement('a');
+            subItemLink.href = `item.html?id=${itemId}&subitem=${subItemIndex}`;
+            subItemLink.innerHTML = subItem.name;
+            subItemLink.style.cssText = 'color: inherit; text-decoration: none; cursor: pointer;';
+            subItemLink.onmouseover = () => subItemLink.style.color = 'var(--accent-blue)';
+            subItemLink.onmouseout = () => subItemLink.style.color = 'inherit';
+            subItemName.appendChild(subItemLink);
         }
 
         subItemHeader.appendChild(subItemName);
@@ -2924,6 +3328,122 @@ function renderSubItems(container, item, itemId) {
     } else {
         article.appendChild(subItemsContainer);
     }
+}
+
+// Render dedicated sub-item detail page
+function renderSubItemDetail(container, parentItem, category, subcategory, subItem, subItemIndex, parentItemId) {
+    const isInlineEdit = currentUser && currentUser.role === 'admin' && isEditMode;
+
+    // Build breadcrumb path
+    let breadcrumbPath = `<a href="index.html">Home</a> &gt; <a href="index.html?category=${category.id}">${category.name}</a>`;
+    if (subcategory) {
+        breadcrumbPath += ` &gt; <a href="index.html?category=${category.id}&subcategory=${subcategory.id}">${subcategory.name}</a>`;
+    }
+    breadcrumbPath += ` &gt; <a href="item.html?id=${parentItemId}">${parentItem.name}</a>`;
+    breadcrumbPath += ` &gt; <span>${subItem.name}</span>`;
+
+    let contentHtml = `
+        <div class="breadcrumb">
+            ${breadcrumbPath}
+        </div>
+        <article class="item-detail">
+            ${isInlineEdit ? `
+                <h1 class="rich-editable subitem-detail-title" id="subitem-title-edit" data-item-id="${parentItemId}" data-subitem-index="${subItemIndex}" data-field="subItemName" data-original="${subItem.name}">${subItem.name}</h1>
+            ` : `
+                <h1 class="${/\<font|\<span|style=|color[=:]/i.test(subItem.name) ? 'has-formatting' : ''}">${subItem.name}</h1>
+            `}
+            
+            <div id="subitem-image-container" style="margin: 20px 0;"></div>
+            
+            <div class="item-description" style="margin-top: 20px;">
+                ${isInlineEdit ? `
+                    <div class="rich-editable subitem-detail-desc" id="subitem-desc-edit" data-item-id="${parentItemId}" data-subitem-index="${subItemIndex}" data-field="subItemDescription" data-original="${subItem.description || ''}">${subItem.description || 'Click to add description...'}</div>
+                ` : `
+                    <p>${subItem.description || 'No description.'}</p>
+                `}
+            </div>
+            
+            <div class="actions" style="margin-top: 30px;">
+                <button id="detail-back-btn" class="btn-back">Go Back</button>
+                ${isInlineEdit ? `<button id="delete-subitem-btn" class="btn-back btn-danger" style="margin-left: 20px;">Delete Sub-item</button>` : ''}
+            </div>
+        </article>
+    `;
+
+    container.innerHTML = contentHtml;
+
+    // Back button handler
+    document.getElementById('detail-back-btn').onclick = () => {
+        window.location.href = `item.html?id=${parentItemId}`;
+    };
+
+    // Setup sub-item image
+    const imgContainer = document.getElementById('subitem-image-container');
+    if (imgContainer) {
+        if (isInlineEdit) {
+            const imgUploader = createImageUploader(subItem.image, (base64) => {
+                const found = findItemById(parentItemId);
+                if (found && found.item.subItems && found.item.subItems[subItemIndex]) {
+                    found.item.subItems[subItemIndex].image = base64;
+                    persistData();
+                }
+            });
+            imgUploader.style.cssText = 'width: 200px; height: 200px;';
+            imgContainer.appendChild(imgUploader);
+        } else if (subItem.image) {
+            const img = document.createElement('img');
+            img.src = subItem.image;
+            img.alt = subItem.name;
+            img.style.cssText = 'max-width: 300px; max-height: 300px; border-radius: 10px; object-fit: cover;';
+            imgContainer.appendChild(img);
+        }
+    }
+
+    // Setup rich text editing
+    if (isInlineEdit) {
+        const titleEdit = document.getElementById('subitem-title-edit');
+        const descEdit = document.getElementById('subitem-desc-edit');
+        if (titleEdit) makeRichEditable(titleEdit);
+        if (descEdit) makeRichEditable(descEdit);
+
+        // Delete button
+        const deleteBtn = document.getElementById('delete-subitem-btn');
+        if (deleteBtn) {
+            deleteBtn.dataset.confirmState = 'idle';
+            deleteBtn.addEventListener('click', function () {
+                if (this.dataset.confirmState === 'idle') {
+                    this.dataset.confirmState = 'confirm';
+                    this.textContent = 'Confirm Delete?';
+                    this.style.backgroundColor = '#d32f2f';
+                    setTimeout(() => {
+                        if (this.dataset.confirmState === 'confirm') {
+                            this.dataset.confirmState = 'idle';
+                            this.textContent = 'Delete Sub-item';
+                            this.style.backgroundColor = '';
+                        }
+                    }, 3000);
+                } else if (this.dataset.confirmState === 'confirm') {
+                    deleteSubItem(parentItemId, subItemIndex);
+                    window.location.href = `item.html?id=${parentItemId}`;
+                }
+            });
+        }
+    }
+
+    // Add floating Save button
+    if (isInlineEdit) {
+        const existingSaveBtn = document.getElementById('saveAllBtn');
+        if (existingSaveBtn) existingSaveBtn.remove();
+
+        const saveAllBtn = document.createElement('button');
+        saveAllBtn.id = 'saveAllBtn';
+        saveAllBtn.className = 'save-all-btn';
+        saveAllBtn.textContent = '💾 Save All Changes';
+        saveAllBtn.addEventListener('click', saveAllChanges);
+        document.body.appendChild(saveAllBtn);
+    }
+
+    document.title = `${subItem.name} - RPG Game Wiki`;
 }
 
 function toggleItemEdit(isEditing) {

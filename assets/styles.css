@@ -1244,3 +1244,72 @@ footer {
     font-size: 0.9em;
     opacity: 0.85;
 }
+
+/* Subcategory Drag and Drop Styles */
+.draggable-subcat {
+    cursor: grab;
+}
+
+.draggable-subcat:active {
+    cursor: grabbing;
+}
+
+.dragging-subcat {
+    opacity: 0.5;
+    border: 2px dashed var(--accent-primary) !important;
+}
+
+.drag-over-subcat {
+    border: 2px solid var(--accent-primary) !important;
+    background: rgba(0, 212, 170, 0.15) !important;
+    transform: scale(1.02);
+    transition: all 0.2s ease;
+}
+
+/* Sub-item Drag and Drop Styles */
+.draggable-subitem {
+    cursor: grab;
+}
+
+.draggable-subitem:active {
+    cursor: grabbing;
+}
+
+.dragging-subitem {
+    opacity: 0.5;
+    border: 2px dashed var(--accent-blue) !important;
+}
+
+.drag-over-subitem {
+    border: 2px solid var(--accent-blue) !important;
+    background: rgba(33, 150, 243, 0.15) !important;
+    transform: scale(1.02);
+    transition: all 0.2s ease;
+}
+
+/* Collapse/Expand Toggle Styles */
+.collapse-toggle-btn {
+    opacity: 0.7;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.collapse-toggle-btn:hover {
+    opacity: 1;
+    color: var(--accent-primary) !important;
+}
+
+.category-group.collapsed,
+.subcategory-group.collapsed {
+    padding-bottom: 10px;
+}
+
+.category-content,
+.subcategory-content {
+    transition: max-height 0.3s ease;
+}
+
+/* Make header cursor pointer for collapsed groups */
+.collapsed .category-header-wrapper,
+.collapsed .subcategory-header-wrapper {
+    cursor: pointer;
+}

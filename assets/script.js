@@ -1579,51 +1579,49 @@ function saveAllChanges() {
         const restrictedEl = document.getElementById('item-restricted-edit');
 
         if (nameEl || descEl || restrictedEl) {
-            for (const cat of localWikiData.categories) {
-                const item = cat.items.find(i => i.id === itemId);
-                if (item) {
-                    if (nameEl && nameEl.innerHTML.trim() !== nameEl.dataset.original) {
-                        item.name = nameEl.innerHTML.trim();
-                        changesMade++;
-                    }
-                    if (descEl && descEl.innerHTML.trim() !== descEl.dataset.original) {
-                        item.description = descEl.innerHTML.trim();
-                        changesMade++;
-                    }
-                    if (restrictedEl) {
-                        const newRestricted = restrictedEl.value.split(',').map(t => t.trim()).filter(t => t);
-                        const oldRestricted = restrictedEl.dataset.original;
-                        if (restrictedEl.value !== oldRestricted) {
-                            if (newRestricted.length > 0) {
-                                item.restrictedTo = newRestricted;
-                            } else {
-                                delete item.restrictedTo;
-                            }
-                            changesMade++;
+            // Use findItemById to search in both direct items and subcategory items
+            const found = findItemById(itemId);
+            if (found) {
+                const item = found.item;
+                if (nameEl && nameEl.innerHTML.trim() !== nameEl.dataset.original) {
+                    item.name = nameEl.innerHTML.trim();
+                    changesMade++;
+                }
+                if (descEl && descEl.innerHTML.trim() !== descEl.dataset.original) {
+                    item.description = descEl.innerHTML.trim();
+                    changesMade++;
+                }
+                if (restrictedEl) {
+                    const newRestricted = restrictedEl.value.split(',').map(t => t.trim()).filter(t => t);
+                    const oldRestricted = restrictedEl.dataset.original;
+                    if (restrictedEl.value !== oldRestricted) {
+                        if (newRestricted.length > 0) {
+                            item.restrictedTo = newRestricted;
+                        } else {
+                            delete item.restrictedTo;
                         }
-                    }
-
-                    // Save Hidden Infos
-                    const hiddenInfoSections = document.querySelectorAll('.hidden-info-edit-section');
-                    if (hiddenInfoSections.length > 0 || (item.hiddenInfos && item.hiddenInfos.length > 0)) {
-                        const newHiddenInfos = [];
-                        hiddenInfoSections.forEach(section => {
-                            const content = section.querySelector('.hidden-info-content').value.trim();
-                            const restrictedInput = section.querySelector('.hidden-info-restricted').value;
-                            const restricted = restrictedInput.split(',').map(t => t.trim()).filter(t => t);
-
-                            if (content) {
-                                newHiddenInfos.push({
-                                    content: content,
-                                    restrictedTo: restricted
-                                });
-                            }
-                        });
-                        item.hiddenInfos = newHiddenInfos;
                         changesMade++;
                     }
+                }
 
-                    break;
+                // Save Hidden Infos
+                const hiddenInfoSections = document.querySelectorAll('.hidden-info-edit-section');
+                if (hiddenInfoSections.length > 0 || (item.hiddenInfos && item.hiddenInfos.length > 0)) {
+                    const newHiddenInfos = [];
+                    hiddenInfoSections.forEach(section => {
+                        const content = section.querySelector('.hidden-info-content').value.trim();
+                        const restrictedInput = section.querySelector('.hidden-info-restricted').value;
+                        const restricted = restrictedInput.split(',').map(t => t.trim()).filter(t => t);
+
+                        if (content) {
+                            newHiddenInfos.push({
+                                content: content,
+                                restrictedTo: restricted
+                            });
+                        }
+                    });
+                    item.hiddenInfos = newHiddenInfos;
+                    changesMade++;
                 }
             }
         }
@@ -2149,16 +2147,31 @@ function renderItemDetail(container) {
         return;
     }
 
-    // Find the item in LOCAL data
+    // Find the item in LOCAL data (including subcategory items)
     let foundItem = null;
     let foundCategory = null;
+    let foundSubcategory = null;
 
     for (const cat of localWikiData.categories) {
+        // Check direct items
         const item = cat.items.find(i => i.id === itemId);
         if (item) {
             foundItem = item;
             foundCategory = cat;
             break;
+        }
+        // Check subcategory items
+        if (cat.subcategories) {
+            for (const subcat of cat.subcategories) {
+                const subcatItem = (subcat.items || []).find(i => i.id === itemId);
+                if (subcatItem) {
+                    foundItem = subcatItem;
+                    foundCategory = cat;
+                    foundSubcategory = subcat;
+                    break;
+                }
+            }
+            if (foundItem) break;
         }
     }
 
@@ -2646,16 +2659,16 @@ function renderItemDetail(container) {
                 newSection.dataset.index = currentCount;
                 newSection.style.cssText = 'background: linear-gradient(135deg, rgba(156, 39, 176, 0.15), rgba(156, 39, 176, 0.05)); padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid #9c27b0;';
                 newSection.innerHTML = `
-                < div style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;" >
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <span style="color: #9c27b0; font-weight: 600;">Hidden Info #${currentCount + 1}</span>
                         <button class="delete-hidden-info-btn btn-danger" data-index="${currentCount}" style="border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Delete</button>
-                    </div >
+                    </div>
                     <textarea class="hidden-info-content" data-index="${currentCount}" style="width: 100%; min-height: 60px; padding: 10px; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 4px; resize: vertical;" placeholder="Enter hidden information content..."></textarea>
                     <div style="margin-top: 10px;">
                         <label style="color: var(--text-secondary); font-size: 0.85em;">Visible to Characters (comma separated):</label>
                         <input type="text" class="hidden-info-restricted" data-index="${currentCount}" style="width: 100%; padding: 8px; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 4px; margin-top: 5px;" placeholder="Leave empty for all">
                     </div>
-            `;
+                `;
                 container.appendChild(newSection);
 
                 // Add delete handler for new section
@@ -2688,15 +2701,33 @@ function renderItemDetail(container) {
                         }
                     }, 3000);
                 } else if (deleteBtn.dataset.confirmState === 'confirm') {
-                    // Execute delete
+                    // Execute delete - check both direct items and subcategory items
+                    let deleted = false;
                     for (const cat of localWikiData.categories) {
+                        // Check direct items
                         const idx = cat.items.findIndex(i => i.id === itemId);
                         if (idx !== -1) {
                             cat.items.splice(idx, 1);
-                            persistData();
-                            window.location.href = 'index.html';
-                            return;
+                            deleted = true;
+                            break;
                         }
+                        // Check subcategory items
+                        if (cat.subcategories) {
+                            for (const subcat of cat.subcategories) {
+                                const subIdx = (subcat.items || []).findIndex(i => i.id === itemId);
+                                if (subIdx !== -1) {
+                                    subcat.items.splice(subIdx, 1);
+                                    deleted = true;
+                                    break;
+                                }
+                            }
+                            if (deleted) break;
+                        }
+                    }
+                    if (deleted) {
+                        persistData();
+                        window.location.href = 'index.html';
+                        return;
                     }
                 }
             });
@@ -2707,9 +2738,16 @@ function renderItemDetail(container) {
             const hasFormatting = (html) => /<font|<span|style=|color[=:]/i.test(html);
             const titleClass = hasFormatting(foundItem.name) ? 'has-formatting' : '';
 
+            // Build breadcrumb path
+            let breadcrumbPath = `<a href="index.html">Home</a> &gt; <a href="index.html?category=${foundCategory.id}">${foundCategory.name}</a>`;
+            if (foundSubcategory) {
+                breadcrumbPath += ` &gt; <a href="index.html?category=${foundCategory.id}&subcategory=${foundSubcategory.id}">${foundSubcategory.name}</a>`;
+            }
+            breadcrumbPath += ` &gt; <span class="${titleClass}">${foundItem.name}</span>`;
+
             contentHtml = `
                 <div class="breadcrumb">
-                    <a href="index.html">Home</a> &gt; <a href="index.html#${foundCategory.id}">${foundCategory.name}</a> &gt; <span class="${titleClass}">${foundItem.name}</span>
+                    ${breadcrumbPath}
                 </div>
                 <article class="item-detail">
                     <h1 class="${titleClass}">${foundItem.name}</h1>

@@ -24,39 +24,193 @@
                 </div>
             </header>
 
-            <main style="padding: 40px;">
-                <!-- Add User Form -->
-                <section class="admin-section" style="margin-bottom: 40px;">
-                    <h3>Add New User</h3>
-                    <div class="form-group" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
-                        <div>
-                            <label for="new-username">Username</label>
-                            <input type="text" id="new-username" placeholder="Enter username" style="width: 200px;">
-                        </div>
-                        <div>
-                            <label for="new-password">Password</label>
-                            <input type="password" id="new-password" placeholder="Enter password" style="width: 200px;">
-                        </div>
-                        <div>
-                            <label for="new-role">Role</label>
-                            <select id="new-role"
-                                style="width: 150px; padding: 10px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color);">
-                                <option value="custom">Custom</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                        </div>
-                        <button id="addUserBtn" class="btn-primary" style="width: auto; padding: 10px 20px;">+ Add
-                            User</button>
-                    </div>
-                </section>
+            <main style="padding: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+                <!-- SECTION 1: WIKI SETTINGS -->
+                <div class="admin-panel-section">
+                    <h2
+                        style="border-bottom: 2px solid var(--accent-primary); padding-bottom: 10px; margin-bottom: 20px;">
+                        Wiki Settings</h2>
 
-                <!-- User List -->
-                <section class="admin-section">
-                    <h3>User List</h3>
-                    <div id="userListContainer">
-                        <!-- Populated by JS -->
-                    </div>
-                </section>
+                    <section class="admin-section">
+                        <h3>General Configuration</h3>
+
+                        <!-- Rich Text Toolbar -->
+                        <div class="rich-text-toolbar" id="adminToolbar"
+                            style="margin-bottom: 15px; display: flex; gap: 5px; flex-wrap: wrap; padding: 8px; background: var(--bg-dark); border-radius: 6px;">
+                            <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"
+                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;"><b>B</b></button>
+                            <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"
+                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;"><i>I</i></button>
+                            <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"
+                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;"><u>U</u></button>
+                            <button type="button" data-cmd="strikeThrough" title="Strikethrough"
+                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;"><s>S</s></button>
+                            <span style="width: 1px; background: var(--border-color); margin: 0 5px;"></span>
+                            <select id="adminColorSelect" title="Text Color"
+                                style="padding: 6px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;">
+                                <option value="">Color</option>
+                                <option value="#ffffff">White</option>
+                                <option value="#888888">Gray</option>
+                                <option value="#f44336">Red</option>
+                                <option value="#ff9800">Orange</option>
+                                <option value="#ffeb3b">Yellow</option>
+                                <option value="#4CAF50">Green</option>
+                                <option value="#2196F3">Blue</option>
+                                <option value="#9c27b0">Violet</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="color" id="adminCustomColor"
+                                style="width: 0; height: 0; opacity: 0; position: absolute;" title="Pick custom color">
+                            <span style="width: 1px; background: var(--border-color); margin: 0 5px;"></span>
+                            <button type="button" data-cmd="removeFormat" title="Clear Formatting"
+                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;">✕</button>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Homepage Hero Title</label>
+                            <div id="wiki-hero-title" contenteditable="true"
+                                style="width: 100%; min-height: 40px; padding: 10px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 15px;">
+                            </div>
+
+                            <label>Homepage Hero Subtitle</label>
+                            <div id="wiki-hero-subtitle" contenteditable="true"
+                                style="width: 100%; min-height: 80px; padding: 10px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                            </div>
+                        </div>
+
+                        <!-- Background Image Section -->
+                        <div class="form-group"
+                            style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                            <label>Background Image</label>
+                            <p style="font-size: 0.85em; color: var(--text-secondary); margin-bottom: 10px;">
+                                This image will be displayed as the background on all wiki pages.
+                            </p>
+
+                            <div id="bg-image-preview"
+                                style="margin-bottom: 15px; border-radius: 8px; overflow: hidden; max-width: 300px;">
+                                <!-- Image preview will be inserted here -->
+                            </div>
+
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <label class="btn-primary"
+                                    style="cursor: pointer; display: inline-flex; align-items: center; padding: 10px 20px;">
+                                    📷 Upload Image
+                                    <input type="file" id="bg-image-input" accept="image/*" style="display: none;">
+                                </label>
+                                <button id="deleteBgImageBtn" class="btn-back"
+                                    style="padding: 10px 20px; width: auto; background: #ff5252;">
+                                    🗑️ Remove Background
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Accent Color Section -->
+                        <div class="form-group"
+                            style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                            <label>Accent Color</label>
+                            <p style="font-size: 0.85em; color: var(--text-secondary); margin-bottom: 10px;">
+                                This color is used for highlights, links, and interactive elements. It will not affect
+                                manually formatted text.
+                            </p>
+
+                            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                                <!-- Current color preview -->
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div id="accentColorPreview"
+                                        style="width: 40px; height: 40px; border-radius: 8px; border: 2px solid var(--border-color); background: var(--accent-primary);">
+                                    </div>
+                                    <span id="accentColorValue"
+                                        style="font-family: monospace; color: var(--text-secondary);">#00d4aa</span>
+                                </div>
+
+                                <!-- Preset colors -->
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button type="button" class="accent-preset" data-color="#00d4aa"
+                                        style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #00d4aa; cursor: pointer;"
+                                        title="Teal (Default)"></button>
+                                    <button type="button" class="accent-preset" data-color="#2196F3"
+                                        style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #2196F3; cursor: pointer;"
+                                        title="Blue"></button>
+                                    <button type="button" class="accent-preset" data-color="#9c27b0"
+                                        style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #9c27b0; cursor: pointer;"
+                                        title="Purple"></button>
+                                    <button type="button" class="accent-preset" data-color="#e91e63"
+                                        style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #e91e63; cursor: pointer;"
+                                        title="Pink"></button>
+                                    <button type="button" class="accent-preset" data-color="#ff9800"
+                                        style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #ff9800; cursor: pointer;"
+                                        title="Orange"></button>
+                                    <button type="button" class="accent-preset" data-color="#4CAF50"
+                                        style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #4CAF50; cursor: pointer;"
+                                        title="Green"></button>
+                                    <button type="button" class="accent-preset" data-color="#f44336"
+                                        style="width: 32px; height: 32px; border-radius: 6px; border: 2px solid transparent; background: #f44336; cursor: pointer;"
+                                        title="Red"></button>
+                                </div>
+
+                                <!-- Custom color picker -->
+                                <label
+                                    style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 12px; background: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 6px;">
+                                    🎨 Custom
+                                    <input type="color" id="accentColorPicker"
+                                        style="width: 30px; height: 30px; border: none; cursor: pointer;">
+                                </label>
+                            </div>
+                        </div>
+
+                        <button id="saveSettingsBtn" class="btn-primary" style="margin-top: 15px;">Save
+                            Settings</button>
+                    </section>
+                </div>
+
+                <!-- SECTION 2: USER MANAGEMENT -->
+                <div class="admin-panel-section">
+                    <h2
+                        style="border-bottom: 2px solid var(--accent-primary); padding-bottom: 10px; margin-bottom: 20px;">
+                        User Management</h2>
+
+                    <!-- Add User Form -->
+                    <section class="admin-section" style="margin-bottom: 30px;">
+                        <h3>Add New User</h3>
+                        <div class="form-group" style="display: flex; flex-direction: column; gap: 10px;">
+                            <div style="display: flex; gap: 10px;">
+                                <div style="flex: 1;">
+                                    <label for="new-username"
+                                        style="display: block; margin-bottom: 5px; font-size: 0.9em;">Username</label>
+                                    <input type="text" id="new-username" placeholder="Enter username"
+                                        style="width: 100%;">
+                                </div>
+                                <div style="flex: 1;">
+                                    <label for="new-password"
+                                        style="display: block; margin-bottom: 5px; font-size: 0.9em;">Password</label>
+                                    <input type="password" id="new-password" placeholder="Enter password"
+                                        style="width: 100%;">
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: flex-end;">
+                                <div style="flex: 1;">
+                                    <label for="new-role"
+                                        style="display: block; margin-bottom: 5px; font-size: 0.9em;">Role</label>
+                                    <select id="new-role"
+                                        style="width: 100%; padding: 10px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color);">
+                                        <option value="custom">Custom</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </div>
+                                <button id="addUserBtn" class="btn-primary"
+                                    style="width: auto; padding: 10px 20px; white-space: nowrap;">+ Add User</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- User List -->
+                    <section class="admin-section">
+                        <h3>User List</h3>
+                        <div id="userListContainer">
+                            <!-- Populated by JS -->
+                        </div>
+                    </section>
+                </div>
             </main>
 
             <footer>
@@ -87,8 +241,204 @@
 
             renderUserList();
 
+            // Initialize Wiki Settings
+            initWikiSettings();
+
             document.getElementById('addUserBtn').onclick = addNewUser;
+            document.getElementById('saveSettingsBtn').onclick = saveWikiSettings;
         });
+
+        function initWikiSettings() {
+            // Load current settings from script.js global data (localWikiData)
+            // Note: Since data is loaded via data.js and script.js, we should access it if available
+            // But this page imports script.js so `localWikiData` should be available globally
+
+            // Wait slightly ensuring script.js init ran? 
+            // script.js runs on load. 
+            // We can check if localWikiData is populated.
+
+            if (typeof localWikiData !== 'undefined') {
+                document.getElementById('wiki-hero-title').innerHTML = localWikiData.heroTitle || 'Welcome to the Wiki';
+                document.getElementById('wiki-hero-subtitle').innerHTML = localWikiData.heroSubtitle || '';
+
+                // Load background image preview
+                updateBgImagePreview();
+
+                // Load accent color preview
+                updateAccentColorPreview(localWikiData.accentColor || '#00d4aa');
+            }
+
+            // Initialize toolbar
+            initAdminToolbar();
+
+            // Initialize background image handlers
+            initBgImageHandlers();
+
+            // Initialize accent color handlers
+            initAccentColorHandlers();
+        }
+
+        // Track selected accent color
+        let selectedAccentColor = '#00d4aa';
+
+        function updateAccentColorPreview(color) {
+            selectedAccentColor = color;
+            const preview = document.getElementById('accentColorPreview');
+            const value = document.getElementById('accentColorValue');
+            const picker = document.getElementById('accentColorPicker');
+
+            if (preview) preview.style.background = color;
+            if (value) value.textContent = color;
+            if (picker) picker.value = color;
+
+            // Highlight the matching preset
+            document.querySelectorAll('.accent-preset').forEach(btn => {
+                if (btn.dataset.color.toLowerCase() === color.toLowerCase()) {
+                    btn.style.borderColor = 'white';
+                    btn.style.transform = 'scale(1.1)';
+                } else {
+                    btn.style.borderColor = 'transparent';
+                    btn.style.transform = 'scale(1)';
+                }
+            });
+        }
+
+        function initAccentColorHandlers() {
+            // Preset color buttons
+            document.querySelectorAll('.accent-preset').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    updateAccentColorPreview(btn.dataset.color);
+                });
+            });
+
+            // Custom color picker
+            const picker = document.getElementById('accentColorPicker');
+            picker.addEventListener('input', (e) => {
+                updateAccentColorPreview(e.target.value);
+            });
+        }
+
+        function updateBgImagePreview() {
+            const previewContainer = document.getElementById('bg-image-preview');
+            const deleteBtn = document.getElementById('deleteBgImageBtn');
+
+            if (localWikiData.backgroundImage) {
+                previewContainer.innerHTML = `
+                    <img src="${localWikiData.backgroundImage}" alt="Background Preview" 
+                         style="width: 100%; height: auto; display: block; border: 2px solid var(--border-color); border-radius: 8px;">
+                `;
+                deleteBtn.style.display = 'inline-flex';
+            } else {
+                previewContainer.innerHTML = `
+                    <div style="padding: 30px; background: var(--bg-dark); border: 2px dashed var(--border-color); border-radius: 8px; text-align: center; color: var(--text-secondary);">
+                        No background image set
+                    </div>
+                `;
+                deleteBtn.style.display = 'none';
+            }
+        }
+
+        function initBgImageHandlers() {
+            const bgInput = document.getElementById('bg-image-input');
+            const deleteBtn = document.getElementById('deleteBgImageBtn');
+
+            bgInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    // Resize image to reasonable size for storage
+                    const tempImg = new Image();
+                    tempImg.onload = () => {
+                        const maxWidth = 1920;
+                        const maxHeight = 1080;
+                        let width = tempImg.width;
+                        let height = tempImg.height;
+
+                        if (width > maxWidth) {
+                            height = (height * maxWidth) / width;
+                            width = maxWidth;
+                        }
+                        if (height > maxHeight) {
+                            width = (width * maxHeight) / height;
+                            height = maxHeight;
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(tempImg, 0, 0, width, height);
+
+                        // Store as JPEG for smaller size
+                        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+                        localWikiData.backgroundImage = base64;
+                        updateBgImagePreview();
+                    };
+                    tempImg.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+                bgInput.value = ''; // Reset so same file can be selected again
+            });
+
+            deleteBtn.addEventListener('click', () => {
+                if (confirm('Remove background image?')) {
+                    localWikiData.backgroundImage = null;
+                    updateBgImagePreview();
+                }
+            });
+        }
+
+        function initAdminToolbar() {
+            // Toolbar command buttons
+            document.querySelectorAll('#adminToolbar button[data-cmd]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const cmd = btn.dataset.cmd;
+                    document.execCommand(cmd, false, null);
+                });
+            });
+
+            // Color picker
+            const colorSelect = document.getElementById('adminColorSelect');
+            const customColorPicker = document.getElementById('adminCustomColor');
+
+            colorSelect.addEventListener('change', (e) => {
+                if (e.target.value === 'custom') {
+                    customColorPicker.click();
+                    e.target.value = '';
+                } else if (e.target.value) {
+                    document.execCommand('foreColor', false, e.target.value);
+                    e.target.value = '';
+                }
+            });
+
+            customColorPicker.addEventListener('input', (e) => {
+                document.execCommand('foreColor', false, e.target.value);
+            });
+        }
+
+        function saveWikiSettings() {
+            const newTitle = document.getElementById('wiki-hero-title').innerHTML;
+            const newSubtitle = document.getElementById('wiki-hero-subtitle').innerHTML;
+
+            if (typeof localWikiData !== 'undefined') {
+                localWikiData.heroTitle = newTitle;
+                localWikiData.heroSubtitle = newSubtitle;
+                // backgroundImage is already set by upload handler
+                // Save accent color
+                localWikiData.accentColor = selectedAccentColor;
+                persistData(); // Defined in script.js
+                // Apply the accent color immediately
+                if (typeof applyAccentColor === 'function') {
+                    applyAccentColor();
+                }
+                alert('Settings saved successfully!');
+            } else {
+                alert('Error: Wiki data not loaded.');
+            }
+        }
 
         function renderUserList() {
             const container = document.getElementById('userListContainer');

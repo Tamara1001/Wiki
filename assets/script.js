@@ -75,6 +75,57 @@ function persistData() {
     localStorage.setItem('modifiedWikiData', JSON.stringify(localWikiData));
 }
 
+// Apply background image to all pages
+function applyBackgroundImage() {
+    // Remove any existing background
+    const existingBg = document.getElementById('wiki-background');
+    if (existingBg) existingBg.remove();
+
+    if (localWikiData && localWikiData.backgroundImage) {
+        const bgDiv = document.createElement('div');
+        bgDiv.id = 'wiki-background';
+        bgDiv.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('${localWikiData.backgroundImage}');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            z-index: -1;
+            opacity: 0.15;
+            pointer-events: none;
+        `;
+        document.body.prepend(bgDiv);
+    }
+}
+
+// Apply accent color via CSS variable
+// This only affects elements using var(--accent-primary), NOT inline styles
+function applyAccentColor() {
+    // Use saved color or default
+    const color = (localWikiData && localWikiData.accentColor) ? localWikiData.accentColor : '#00d4aa';
+
+    console.log('Applying accent color:', color);
+    document.documentElement.style.setProperty('--accent-primary', color);
+
+    // Extract RGB values
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+
+    console.log('Setting glow colors:', r, g, b);
+    document.documentElement.style.setProperty('--accent-primary-rgb', `${r}, ${g}, ${b}`);
+
+    // Set glow colors directly
+    document.documentElement.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.3)`);
+    document.documentElement.style.setProperty('--accent-glow-strong', `rgba(${r}, ${g}, ${b}, 0.5)`);
+}
+
 // Helper function to create image upload element
 function createImageUploader(currentImage, onImageChange) {
     const container = document.createElement('div');
@@ -686,8 +737,8 @@ function updateAuthUI() {
             const adminBtn = document.createElement('button');
             adminBtn.id = 'adminPanelBtn';
             adminBtn.type = 'button';
-            adminBtn.className = 'btn-primary';
-            adminBtn.style.cssText = 'padding: 5px 10px; font-size: 0.9em; background-color: #9c27b0;';
+            adminBtn.className = 'btn-admin';
+            adminBtn.style.cssText = 'padding: 8px 16px; font-size: 0.9em;';
             adminBtn.textContent = '⚙️ Admin';
             adminBtn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -699,8 +750,8 @@ function updateAuthUI() {
             // Edit Mode Toggle (second)
             const toggle = document.createElement('button');
             toggle.id = 'editModeToggle';
-            toggle.className = 'btn-primary';
-            toggle.style.cssText = 'padding: 5px 10px; font-size: 0.9em;';
+            toggle.className = 'btn-edit-mode';
+            toggle.style.cssText = 'padding: 8px 16px; font-size: 0.9em;';
             toggle.textContent = isEditMode ? 'Exit Edit Mode' : 'Edit Mode';
             toggle.onclick = () => {
                 isEditMode = !isEditMode;
@@ -831,6 +882,12 @@ function initWiki() {
 
     console.log('Script Init Started');
     loadWikiData(); // Ensure data is loaded
+
+    // Apply background image if set
+    applyBackgroundImage();
+
+    // Apply accent color if set
+    applyAccentColor();
 
     try {
         initAuth(); // Initialize Auth
@@ -1745,8 +1802,8 @@ function renderHome(container) {
             if (filterCategoryId && currentUser && currentUser.role === 'admin' && isEditMode) {
                 const addSubcatBtn = document.createElement('button');
                 addSubcatBtn.textContent = '+ Add Subcategory';
-                addSubcatBtn.className = 'btn-back';
-                addSubcatBtn.style.cssText = 'margin-top: 20px; padding: 10px 20px; background: linear-gradient(135deg, #9c27b0, #7b1fa2); border: none; color: white;';
+                addSubcatBtn.className = 'btn-primary';
+                addSubcatBtn.style.cssText = 'margin-top: 20px;';
                 addSubcatBtn.onclick = () => addSubcategory(category.id);
                 collapsibleContent.appendChild(addSubcatBtn);
             }

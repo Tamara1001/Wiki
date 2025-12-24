@@ -265,6 +265,183 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+// ==================== INLINE RICH TEXT TOOLBAR ====================
+// On-page toolbar that can be inserted before any contenteditable field
+
+function createInlineToolbar(targetElement, toolbarId) {
+    const toolbarContainer = document.createElement('div');
+    toolbarContainer.className = 'rich-text-toolbar inline-toolbar';
+    toolbarContainer.id = toolbarId || 'inlineToolbar_' + Math.random().toString(36).substr(2, 9);
+    toolbarContainer.innerHTML = `
+        <button type="button" data-cmd="bold" title="Bold"><b>B</b></button>
+        <button type="button" data-cmd="italic" title="Italic"><i>I</i></button>
+        <button type="button" data-cmd="underline" title="Underline"><u>U</u></button>
+        <button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+        <span class="toolbar-divider"></span>
+        <button type="button" data-cmd="justifyLeft" title="Align Left">⬅</button>
+        <button type="button" data-cmd="justifyCenter" title="Align Center">⬛</button>
+        <button type="button" data-cmd="justifyRight" title="Align Right">➡</button>
+        <span class="toolbar-divider"></span>
+        <select class="heading-select" title="Heading">
+            <option value="">Heading</option>
+            <option value="h1">H1</option>
+            <option value="h2">H2</option>
+            <option value="h3">H3</option>
+            <option value="p">Normal</option>
+        </select>
+        <select class="font-size-select" title="Font Size">
+            <option value="">Size</option>
+            <option value="1">Small</option>
+            <option value="3">Normal</option>
+            <option value="5">Large</option>
+            <option value="7">X-Large</option>
+        </select>
+        <span class="toolbar-divider"></span>
+        <select class="color-select" title="Text Color">
+            <option value="">Color</option>
+            <option value="#ffffff">White</option>
+            <option value="#888888">Gray</option>
+            <option value="#000000">Black</option>
+            <option value="#f44336">Red</option>
+            <option value="#ff9800">Orange</option>
+            <option value="#ffeb3b">Yellow</option>
+            <option value="#4CAF50">Green</option>
+            <option value="#2196F3">Blue</option>
+            <option value="#9c27b0">Violet</option>
+            <option value="custom">Custom...</option>
+        </select>
+        <input type="color" class="custom-color-picker" style="width:0;height:0;opacity:0;position:absolute;">
+        <span class="toolbar-divider"></span>
+        <button type="button" class="insert-image-btn" title="Insert Image">📷</button>
+        <input type="file" class="image-input" accept="image/*" style="display:none;">
+        <span class="toolbar-divider"></span>
+        <button type="button" data-cmd="removeFormat" title="Clear Formatting">✕</button>
+    `;
+
+    // Wire up command buttons
+    toolbarContainer.querySelectorAll('button[data-cmd]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.execCommand(btn.dataset.cmd, false, null);
+            targetElement.focus();
+        });
+    });
+
+    // Heading handler
+    const headingSelect = toolbarContainer.querySelector('.heading-select');
+    headingSelect.addEventListener('change', (e) => {
+        if (e.target.value) {
+            document.execCommand('formatBlock', false, e.target.value);
+            targetElement.focus();
+            e.target.value = '';
+        }
+    });
+
+    // Font size handler
+    const fontSizeSelect = toolbarContainer.querySelector('.font-size-select');
+    fontSizeSelect.addEventListener('change', (e) => {
+        if (e.target.value) {
+            document.execCommand('fontSize', false, e.target.value);
+            targetElement.focus();
+            e.target.value = '';
+        }
+    });
+
+    // Color handler with custom option
+    const colorSelect = toolbarContainer.querySelector('.color-select');
+    const customColorPicker = toolbarContainer.querySelector('.custom-color-picker');
+
+    colorSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'custom') {
+            customColorPicker.click();
+            e.target.value = '';
+        } else if (e.target.value) {
+            document.execCommand('foreColor', false, e.target.value);
+            targetElement.focus();
+            e.target.value = '';
+        }
+    });
+
+    customColorPicker.addEventListener('input', (e) => {
+        document.execCommand('foreColor', false, e.target.value);
+        targetElement.focus();
+    });
+
+    // Image insertion handler
+    const insertImageBtn = toolbarContainer.querySelector('.insert-image-btn');
+    const imageInput = toolbarContainer.querySelector('.image-input');
+
+    insertImageBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        imageInput.click();
+    });
+
+    imageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                const maxWidth = 400;
+                const maxHeight = 400;
+                let width = tempImg.width;
+                let height = tempImg.height;
+
+                if (width > maxWidth) {
+                    height = (height * maxWidth) / width;
+                    width = maxWidth;
+                }
+                if (height > maxHeight) {
+                    width = (width * maxHeight) / height;
+                    height = maxHeight;
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(tempImg, 0, 0, width, height);
+                const base64 = canvas.toDataURL('image/png');
+
+                // Insert image at cursor position
+                targetElement.focus();
+                const img = document.createElement('img');
+                img.src = base64;
+                img.className = 'desc-inline-image';
+                img.style.cssText = 'max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block; cursor: pointer;';
+                img.title = 'Click to delete this image';
+
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    range.deleteContents();
+                    range.insertNode(img);
+                    range.setStartAfter(img);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    targetElement.appendChild(img);
+                }
+
+                // Add delete handler
+                img.addEventListener('click', () => {
+                    if (confirm('Delete this image?')) {
+                        img.remove();
+                    }
+                });
+            };
+            tempImg.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        imageInput.value = '';
+    });
+
+    return toolbarContainer;
+}
+
 // ==================== UNIFIED RICH TEXT TOOLBAR ====================
 // Floating toolbar that appears when editing any rich text field
 
@@ -300,6 +477,25 @@ function createFloatingToolbar() {
         <button type="button" data-cmd="italic" title="Italic (Ctrl+I)" style="font-style:italic;">I</button>
         <button type="button" data-cmd="underline" title="Underline (Ctrl+U)" style="text-decoration:underline;">U</button>
         <button type="button" data-cmd="strikeThrough" title="Strikethrough" style="text-decoration:line-through;">S</button>
+        <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
+        <button type="button" data-cmd="justifyLeft" title="Align Left">⬅</button>
+        <button type="button" data-cmd="justifyCenter" title="Align Center">⬛</button>
+        <button type="button" data-cmd="justifyRight" title="Align Right">➡</button>
+        <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
+        <select id="floatingHeadingSelect" title="Heading" style="padding:4px;background:#333;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">
+            <option value="">Heading</option>
+            <option value="h1">H1</option>
+            <option value="h2">H2</option>
+            <option value="h3">H3</option>
+            <option value="p">Normal</option>
+        </select>
+        <select id="floatingFontSizeSelect" title="Font Size" style="padding:4px;background:#333;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">
+            <option value="">Size</option>
+            <option value="1">Small</option>
+            <option value="3">Normal</option>
+            <option value="5">Large</option>
+            <option value="7">X-Large</option>
+        </select>
         <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
         <select id="floatingColorSelect" title="Text Color" style="padding:4px;background:#333;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">
             <option value="">🎨</option>
@@ -358,6 +554,26 @@ function createFloatingToolbar() {
     customColor.addEventListener('input', (e) => {
         document.execCommand('foreColor', false, e.target.value);
         if (activeEditableField) activeEditableField.focus();
+    });
+
+    // Heading select handler
+    const headingSelect = toolbar.querySelector('#floatingHeadingSelect');
+    headingSelect.addEventListener('change', (e) => {
+        if (e.target.value) {
+            document.execCommand('formatBlock', false, e.target.value);
+            if (activeEditableField) activeEditableField.focus();
+            e.target.value = '';
+        }
+    });
+
+    // Font size select handler
+    const fontSizeSelect = toolbar.querySelector('#floatingFontSizeSelect');
+    fontSizeSelect.addEventListener('change', (e) => {
+        if (e.target.value) {
+            document.execCommand('fontSize', false, e.target.value);
+            if (activeEditableField) activeEditableField.focus();
+            e.target.value = '';
+        }
     });
 
     // Close button handler
@@ -1348,22 +1564,35 @@ function renderHome(container) {
 
             // Show Category Description ONLY on Category Page (not subcategory page)
             if (filterCategoryId && !filterSubcategoryId) {
-                const descP = document.createElement('p');
+                const descContainer = document.createElement('div');
+                descContainer.className = 'category-description-container';
+                descContainer.style.cssText = 'margin-bottom: 20px;';
+
+                const descP = document.createElement('div');
                 descP.className = 'category-description';
-                descP.style.cssText = 'color: var(--text-secondary); margin-bottom: 20px; font-style: italic;';
+                descP.style.cssText = 'color: var(--text-secondary); font-style: italic;';
 
                 if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                    // Use unified rich text editing
+                    // Create inline toolbar for category description
+                    const catDescToolbar = createInlineToolbar(descP, 'catDescToolbar');
+                    descContainer.appendChild(catDescToolbar);
+
+                    descP.contentEditable = 'true';
                     descP.innerHTML = category.description || 'Click to add description...';
                     descP.dataset.catIndex = catIndex;
                     descP.dataset.field = 'description';
                     descP.dataset.original = category.description || '';
-                    makeRichEditable(descP);
+                    descP.style.minHeight = '60px';
+                    descP.style.padding = '10px';
+                    descP.style.border = '1px solid var(--border-color)';
+                    descP.style.borderRadius = '8px';
+                    descP.style.marginTop = '8px';
                 } else {
                     descP.innerHTML = category.description || 'No description.';
                 }
 
-                catGroup.appendChild(descP);
+                descContainer.appendChild(descP);
+                catGroup.appendChild(descContainer);
             }
 
             // ==================== COLLAPSIBLE CONTENT WRAPPER ====================
@@ -1686,23 +1915,38 @@ function renderHome(container) {
 
                     // Subcategory Description - only show on subcategory page
                     if (filterSubcategoryId) {
+                        const subcatDescContainer = document.createElement('div');
+                        subcatDescContainer.style.cssText = 'margin-bottom: 15px;';
+
                         if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                            const subcatDescP = document.createElement('p');
+                            const subcatDescP = document.createElement('div');
                             subcatDescP.className = 'subcategory-description rich-editable';
-                            subcatDescP.style.cssText = 'color: var(--text-secondary); margin-bottom: 15px; font-style: italic;';
+                            subcatDescP.style.cssText = 'color: var(--text-secondary); font-style: italic;';
+
+                            // Create inline toolbar for subcategory description
+                            const subcatDescToolbar = createInlineToolbar(subcatDescP, 'subcatDescToolbar');
+                            subcatDescContainer.appendChild(subcatDescToolbar);
+
+                            subcatDescP.contentEditable = 'true';
                             subcatDescP.innerHTML = subcat.description || 'Click to add description...';
                             subcatDescP.dataset.catIndex = catIndex;
                             subcatDescP.dataset.subcatIndex = actualSubcatIndex;
                             subcatDescP.dataset.field = 'subcatDescription';
                             subcatDescP.dataset.original = subcat.description || '';
-                            makeRichEditable(subcatDescP);
-                            subcatGroup.appendChild(subcatDescP);
+                            subcatDescP.style.minHeight = '60px';
+                            subcatDescP.style.padding = '10px';
+                            subcatDescP.style.border = '1px solid var(--border-color)';
+                            subcatDescP.style.borderRadius = '8px';
+                            subcatDescP.style.marginTop = '8px';
+
+                            subcatDescContainer.appendChild(subcatDescP);
                         } else if (subcat.description) {
                             const subcatDescP = document.createElement('p');
-                            subcatDescP.style.cssText = 'color: var(--text-secondary); margin-bottom: 15px; font-style: italic;';
+                            subcatDescP.style.cssText = 'color: var(--text-secondary); font-style: italic;';
                             subcatDescP.innerHTML = subcat.description;
-                            subcatGroup.appendChild(subcatDescP);
+                            subcatDescContainer.appendChild(subcatDescP);
                         }
+                        subcatGroup.appendChild(subcatDescContainer);
                     }
 
                     // ==================== SUBCATEGORY COLLAPSIBLE CONTENT ====================
@@ -1760,6 +2004,61 @@ function renderHome(container) {
                         const a = document.createElement('a');
                         a.href = `item.html?id=${item.id}`;
                         a.className = 'item-link';
+
+                        // Drag and drop in Edit Mode
+                        if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                            li.draggable = true;
+                            li.classList.add('draggable');
+                            li.dataset.catIndex = catIndex;
+                            li.dataset.subcatIndex = actualSubcatIndex;
+                            li.dataset.itemIndex = itemIdx;
+
+                            li.addEventListener('dragstart', (e) => {
+                                li.classList.add('dragging');
+                                e.dataTransfer.setData('text/plain', JSON.stringify({
+                                    type: 'subcatItem',
+                                    catIndex: catIndex,
+                                    subcatIndex: actualSubcatIndex,
+                                    itemIndex: itemIdx
+                                }));
+                                e.dataTransfer.effectAllowed = 'move';
+                            });
+
+                            li.addEventListener('dragend', () => {
+                                li.classList.remove('dragging');
+                                document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                            });
+
+                            li.addEventListener('dragover', (e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'move';
+                                li.classList.add('drag-over');
+                            });
+
+                            li.addEventListener('dragleave', () => {
+                                li.classList.remove('drag-over');
+                            });
+
+                            li.addEventListener('drop', (e) => {
+                                e.preventDefault();
+                                li.classList.remove('drag-over');
+
+                                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+
+                                // Only allow reorder within same subcategory
+                                if (data.type === 'subcatItem' &&
+                                    data.catIndex === catIndex &&
+                                    data.subcatIndex === actualSubcatIndex &&
+                                    data.itemIndex !== itemIdx) {
+
+                                    const subcatItems = localWikiData.categories[catIndex].subcategories[actualSubcatIndex].items;
+                                    const [movedItem] = subcatItems.splice(data.itemIndex, 1);
+                                    subcatItems.splice(itemIdx, 0, movedItem);
+                                    persistData();
+                                    renderHome(document.getElementById('contentGrid'));
+                                }
+                            });
+                        }
 
                         const imageHtml = item.image
                             ? `<img src="${item.image}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:6px;margin-right:8px;flex-shrink:0;">`
@@ -2829,8 +3128,26 @@ function renderItemDetail(container) {
                             <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
                             <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
                             <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
-                            <span class="toolbar-divider"></span>
                             <button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+                            <span class="toolbar-divider"></span>
+                            <button type="button" data-cmd="justifyLeft" title="Align Left">⬅</button>
+                            <button type="button" data-cmd="justifyCenter" title="Align Center">⬛</button>
+                            <button type="button" data-cmd="justifyRight" title="Align Right">➡</button>
+                            <span class="toolbar-divider"></span>
+                            <select id="headingSelect" title="Heading">
+                                <option value="">Heading</option>
+                                <option value="h1">H1</option>
+                                <option value="h2">H2</option>
+                                <option value="h3">H3</option>
+                                <option value="p">Normal</option>
+                            </select>
+                            <select id="fontSizeSelect" title="Font Size">
+                                <option value="">Size</option>
+                                <option value="1">Small</option>
+                                <option value="3">Normal</option>
+                                <option value="5">Large</option>
+                                <option value="7">X-Large</option>
+                            </select>
                             <span class="toolbar-divider"></span>
                             <select id="textColorSelect" title="Text Color">
                                 <option value="">Color</option>
@@ -2930,6 +3247,30 @@ function renderItemDetail(container) {
                 document.execCommand('foreColor', false, e.target.value);
                 document.getElementById('item-desc-edit').focus();
             });
+
+            // Heading select handler
+            const headingSelect = document.getElementById('headingSelect');
+            if (headingSelect) {
+                headingSelect.addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        document.execCommand('formatBlock', false, e.target.value);
+                        document.getElementById('item-desc-edit').focus();
+                        e.target.value = '';
+                    }
+                });
+            }
+
+            // Font size select handler
+            const fontSizeSelect = document.getElementById('fontSizeSelect');
+            if (fontSizeSelect) {
+                fontSizeSelect.addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        document.execCommand('fontSize', false, e.target.value);
+                        document.getElementById('item-desc-edit').focus();
+                        e.target.value = '';
+                    }
+                });
+            }
 
             // Insert Image handler
             const insertImageBtn = document.getElementById('insertImageBtn');
@@ -3351,12 +3692,21 @@ function renderSubItems(container, item, itemId) {
 
         if (currentUser && currentUser.role === 'admin' && isEditMode) {
             subItemDesc.className = 'subitem-desc-rich rich-editable';
+            subItemDesc.contentEditable = 'true';
             subItemDesc.innerHTML = subItem.description || 'Click to add description...';
             subItemDesc.dataset.itemId = itemId;
             subItemDesc.dataset.subItemIndex = subItemIndex;
             subItemDesc.dataset.field = 'subItemDescription';
             subItemDesc.dataset.original = subItem.description || '';
-            makeRichEditable(subItemDesc);
+            subItemDesc.style.minHeight = '80px';
+            subItemDesc.style.padding = '10px';
+            subItemDesc.style.border = '1px solid var(--border-color)';
+            subItemDesc.style.borderRadius = '8px';
+            subItemDesc.style.marginTop = '5px';
+
+            // Create and insert inline toolbar
+            const subItemToolbar = createInlineToolbar(subItemDesc, 'subItemToolbar_' + subItemIndex);
+            subItemDiv.appendChild(subItemToolbar);
         } else {
             // Hide description in list view (view mode) - only visible on sub-item page
             subItemDesc.innerHTML = '';

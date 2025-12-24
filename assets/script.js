@@ -886,12 +886,42 @@ function renderNavigation() {
             if (window.innerWidth <= 768) toggleSidebar();
         });
         li.appendChild(a);
+
+        // Render subcategories if they exist
+        if (category.subcategories && category.subcategories.length > 0) {
+            const subList = document.createElement('ul');
+            subList.className = 'nav-subcategories';
+            subList.style.cssText = 'margin-left: 15px; margin-top: 4px; border-left: 1px solid var(--border-color); padding-left: 10px;';
+
+            category.subcategories.forEach(subcat => {
+                const subLi = document.createElement('li');
+                const subA = document.createElement('a');
+                subA.href = `index.html?category=${category.id}&subcategory=${subcat.id}`;
+                subA.innerHTML = subcat.name;
+                subA.style.cssText = 'font-size: 0.9em; opacity: 0.85;';
+
+                const subHasFormatting = /<font|<span|style=|color[=:]/i.test(subcat.name);
+                if (subHasFormatting) {
+                    subA.classList.add('has-formatting');
+                }
+
+                subA.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) toggleSidebar();
+                });
+                subLi.appendChild(subA);
+                subList.appendChild(subLi);
+            });
+
+            li.appendChild(subList);
+        }
+
         navList.appendChild(li);
     });
 }
 
 const urlParams = new URLSearchParams(window.location.search);
 const filterCategoryId = urlParams.get('category');
+const filterSubcategoryId = urlParams.get('subcategory');
 
 function renderHome(container) {
     container.innerHTML = '';
@@ -1258,6 +1288,144 @@ function renderHome(container) {
             }
 
             catGroup.appendChild(list);
+
+            // ==================== RENDER SUBCATEGORIES ====================
+            // Only show subcategories on category page (filtered view)
+            if (filterCategoryId && category.subcategories && category.subcategories.length > 0) {
+                // If filtering by subcategory, only show that one
+                const subcatsToRender = filterSubcategoryId
+                    ? category.subcategories.filter(s => s.id === filterSubcategoryId)
+                    : category.subcategories;
+
+                subcatsToRender.forEach((subcat, subcatIndex) => {
+                    const actualSubcatIndex = category.subcategories.findIndex(s => s.id === subcat.id);
+
+                    const subcatGroup = document.createElement('div');
+                    subcatGroup.className = 'subcategory-group';
+                    subcatGroup.id = subcat.id;
+                    subcatGroup.style.cssText = 'margin-top: 30px; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; border-left: 3px solid var(--accent-primary);';
+
+                    // Subcategory Header
+                    const subcatHeader = document.createElement('div');
+                    subcatHeader.className = 'subcategory-header-wrapper';
+                    subcatHeader.style.cssText = 'display: flex; align-items: center; margin-bottom: 15px;';
+
+                    // Subcategory Image
+                    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                        const imgUploader = createImageUploader(subcat.image, (base64) => {
+                            localWikiData.categories[catIndex].subcategories[actualSubcatIndex].image = base64;
+                            persistData();
+                        });
+                        imgUploader.style.marginRight = '12px';
+                        subcatHeader.appendChild(imgUploader);
+                    } else if (subcat.image) {
+                        const imgDisplay = createImageDisplay(subcat.image);
+                        if (imgDisplay) {
+                            imgDisplay.style.marginRight = '12px';
+                            subcatHeader.appendChild(imgDisplay);
+                        }
+                    }
+
+                    // Subcategory Title
+                    const subcatTitle = document.createElement('h3');
+                    subcatTitle.style.cssText = 'margin: 0; font-size: 1.2rem;';
+
+                    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                        const subcatNameSpan = document.createElement('span');
+                        subcatNameSpan.className = 'subcategory-title-rich rich-editable';
+                        subcatNameSpan.innerHTML = subcat.name;
+                        subcatNameSpan.dataset.catIndex = catIndex;
+                        subcatNameSpan.dataset.subcatIndex = actualSubcatIndex;
+                        subcatNameSpan.dataset.field = 'subcatName';
+                        subcatNameSpan.dataset.original = subcat.name;
+                        makeRichEditable(subcatNameSpan);
+                        subcatTitle.appendChild(subcatNameSpan);
+
+                        // Delete Subcategory button
+                        const delSubcatBtn = document.createElement('button');
+                        delSubcatBtn.textContent = '🗑️';
+                        delSubcatBtn.title = 'Delete Subcategory';
+                        delSubcatBtn.style.cssText = 'margin-left: 10px; padding: 4px 8px; background: #ff5252; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;';
+                        delSubcatBtn.onclick = () => deleteSubcategory(catIndex, actualSubcatIndex);
+                        subcatTitle.appendChild(delSubcatBtn);
+                    } else {
+                        subcatTitle.innerHTML = subcat.name;
+                    }
+
+                    subcatHeader.appendChild(subcatTitle);
+                    subcatGroup.appendChild(subcatHeader);
+
+                    // Subcategory Description
+                    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                        const subcatDescP = document.createElement('p');
+                        subcatDescP.className = 'subcategory-description rich-editable';
+                        subcatDescP.style.cssText = 'color: var(--text-secondary); margin-bottom: 15px; font-style: italic;';
+                        subcatDescP.innerHTML = subcat.description || 'Click to add description...';
+                        subcatDescP.dataset.catIndex = catIndex;
+                        subcatDescP.dataset.subcatIndex = actualSubcatIndex;
+                        subcatDescP.dataset.field = 'subcatDescription';
+                        subcatDescP.dataset.original = subcat.description || '';
+                        makeRichEditable(subcatDescP);
+                        subcatGroup.appendChild(subcatDescP);
+                    } else if (subcat.description) {
+                        const subcatDescP = document.createElement('p');
+                        subcatDescP.style.cssText = 'color: var(--text-secondary); margin-bottom: 15px; font-style: italic;';
+                        subcatDescP.innerHTML = subcat.description;
+                        subcatGroup.appendChild(subcatDescP);
+                    }
+
+                    // Subcategory Items List
+                    const subcatItemsList = document.createElement('ul');
+                    subcatItemsList.className = 'item-list';
+
+                    (subcat.items || []).forEach((item, itemIdx) => {
+                        const li = document.createElement('li');
+                        const a = document.createElement('a');
+                        a.href = `item.html?id=${item.id}`;
+                        a.className = 'item-link';
+
+                        const imageHtml = item.image
+                            ? `<img src="${item.image}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;margin-right:10px;flex-shrink:0;">`
+                            : '';
+
+                        a.style.cssText = 'display: flex; align-items: center;';
+                        a.innerHTML = `
+                            ${imageHtml}
+                            <div style="flex:1;">
+                                <span class="item-name">${item.name}</span>
+                                <span class="item-desc-short">${item.description}</span>
+                            </div>
+                        `;
+                        li.appendChild(a);
+                        subcatItemsList.appendChild(li);
+                    });
+
+                    // Add Item to Subcategory button
+                    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                        const addSubcatItemLi = document.createElement('li');
+                        addSubcatItemLi.className = 'add-item-card';
+                        const addSubcatItemBtn = document.createElement('button');
+                        addSubcatItemBtn.textContent = '+ Add Item to Subcategory';
+                        addSubcatItemBtn.onclick = () => addItemToSubcategory(category.id, subcat.id);
+                        addSubcatItemLi.appendChild(addSubcatItemBtn);
+                        subcatItemsList.appendChild(addSubcatItemLi);
+                    }
+
+                    subcatGroup.appendChild(subcatItemsList);
+                    catGroup.appendChild(subcatGroup);
+                });
+            }
+
+            // Add Subcategory button (only on category page in edit mode)
+            if (filterCategoryId && currentUser && currentUser.role === 'admin' && isEditMode) {
+                const addSubcatBtn = document.createElement('button');
+                addSubcatBtn.textContent = '+ Add Subcategory';
+                addSubcatBtn.className = 'btn-back';
+                addSubcatBtn.style.cssText = 'margin-top: 20px; padding: 10px 20px; background: linear-gradient(135deg, #9c27b0, #7b1fa2); border: none; color: white;';
+                addSubcatBtn.onclick = () => addSubcategory(category.id);
+                catGroup.appendChild(addSubcatBtn);
+            }
+
             container.appendChild(catGroup);
         }
     });
@@ -1362,9 +1530,10 @@ function saveAllChanges() {
         }
     }
 
-    // Collect all editable elements with changes (categories)
-    document.querySelectorAll('.inline-editable, .rich-editable, .category-title-rich, .category-description').forEach(el => {
+    // Collect all editable elements with changes (categories and subcategories)
+    document.querySelectorAll('.inline-editable, .rich-editable, .category-title-rich, .category-description, .subcategory-title-rich, .subcategory-description').forEach(el => {
         const catIndex = parseInt(el.dataset.catIndex);
+        const subcatIndex = parseInt(el.dataset.subcatIndex);
         const field = el.dataset.field;
 
         // Skip if no catIndex or field
@@ -1377,7 +1546,19 @@ function saveAllChanges() {
         if (newValue !== original) {
             const category = localWikiData.categories[catIndex];
             if (category) {
-                if (field === 'name') {
+                // Handle subcategory fields
+                if (field === 'subcatName' || field === 'subcatDescription') {
+                    if (!isNaN(subcatIndex) && category.subcategories && category.subcategories[subcatIndex]) {
+                        const subcat = category.subcategories[subcatIndex];
+                        if (field === 'subcatName') {
+                            subcat.name = newValue;
+                            changesMade++;
+                        } else if (field === 'subcatDescription') {
+                            subcat.description = newValue;
+                            changesMade++;
+                        }
+                    }
+                } else if (field === 'name') {
                     category.name = newValue;
                     changesMade++;
                 } else if (field === 'description') {
@@ -1447,6 +1628,33 @@ function saveAllChanges() {
             }
         }
     }
+
+    // Save Sub-item Edits
+    document.querySelectorAll('.subitem-name-rich, .subitem-desc-rich').forEach(el => {
+        const itemId = el.dataset.itemId;
+        const subItemIndex = parseInt(el.dataset.subItemIndex);
+        const field = el.dataset.field;
+
+        if (!itemId || isNaN(subItemIndex) || !field) return;
+
+        const newValue = el.innerHTML.trim();
+        const original = el.dataset.original || '';
+
+        if (newValue !== original) {
+            const found = findItemById(itemId);
+            if (found && found.item.subItems && found.item.subItems[subItemIndex]) {
+                const subItem = found.item.subItems[subItemIndex];
+                if (field === 'subItemName') {
+                    subItem.name = newValue;
+                    changesMade++;
+                } else if (field === 'subItemDescription') {
+                    subItem.description = newValue;
+                    changesMade++;
+                }
+                el.dataset.original = newValue;
+            }
+        }
+    });
 
     if (changesMade > 0) {
         persistData();
@@ -1678,6 +1886,163 @@ function editCategoryDescription(index) {
     }
 
     textarea.focus();
+}
+
+// ==================== SUBCATEGORY FUNCTIONS ====================
+
+function addSubcategory(parentCategoryId) {
+    console.log('Adding subcategory to category:', parentCategoryId);
+
+    const catIndex = localWikiData.categories.findIndex(c => c.id === parentCategoryId);
+    if (catIndex === -1) {
+        console.error('Parent category not found:', parentCategoryId);
+        return;
+    }
+
+    const category = localWikiData.categories[catIndex];
+
+    // Initialize subcategories array if it doesn't exist
+    if (!category.subcategories) {
+        category.subcategories = [];
+    }
+
+    const timestamp = Date.now();
+    const newSubcat = {
+        id: `subcategory-${timestamp}`,
+        name: 'New Subcategory',
+        description: 'Subcategory description',
+        image: null,
+        items: []
+    };
+
+    category.subcategories.push(newSubcat);
+    console.log('New subcategory added:', newSubcat);
+    persistData();
+
+    const contentGrid = document.getElementById('contentGrid');
+    if (contentGrid) renderHome(contentGrid);
+    renderNavigation();
+}
+
+function deleteSubcategory(parentCatIndex, subcatIndex) {
+    const category = localWikiData.categories[parentCatIndex];
+    if (!category || !category.subcategories) return;
+
+    const subcat = category.subcategories[subcatIndex];
+    if (!subcat) return;
+
+    if (confirm(`Delete subcategory "${subcat.name}" and all its items? This cannot be undone.`)) {
+        category.subcategories.splice(subcatIndex, 1);
+        persistData();
+
+        const contentGrid = document.getElementById('contentGrid');
+        if (contentGrid) renderHome(contentGrid);
+        renderNavigation();
+    }
+}
+
+function addItemToSubcategory(parentCatId, subcatId) {
+    console.log('Adding item to subcategory:', subcatId, 'in category:', parentCatId);
+
+    const catIndex = localWikiData.categories.findIndex(c => c.id === parentCatId);
+    if (catIndex === -1) return;
+
+    const category = localWikiData.categories[catIndex];
+    if (!category.subcategories) return;
+
+    const subcatIndex = category.subcategories.findIndex(s => s.id === subcatId);
+    if (subcatIndex === -1) return;
+
+    const subcat = category.subcategories[subcatIndex];
+
+    const timestamp = Date.now();
+    const newItem = {
+        id: `new-item-${timestamp}`,
+        name: 'New Item',
+        description: 'Item without description',
+        tags: ['New'],
+        restrictedTo: null
+    };
+
+    subcat.items.push(newItem);
+    persistData();
+
+    const contentGrid = document.getElementById('contentGrid');
+    if (contentGrid) renderHome(contentGrid);
+}
+
+// ==================== SUB-ITEM FUNCTIONS ====================
+
+// Helper function to find an item by ID across all categories and subcategories
+function findItemById(itemId) {
+    for (const cat of localWikiData.categories) {
+        // Check direct items
+        for (const item of cat.items || []) {
+            if (item.id === itemId) {
+                return { item, category: cat, subcategory: null };
+            }
+        }
+        // Check subcategory items
+        for (const subcat of cat.subcategories || []) {
+            for (const item of subcat.items || []) {
+                if (item.id === itemId) {
+                    return { item, category: cat, subcategory: subcat };
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function addSubItem(parentItemId) {
+    console.log('Adding sub-item to item:', parentItemId);
+
+    const found = findItemById(parentItemId);
+    if (!found) {
+        console.error('Parent item not found:', parentItemId);
+        return;
+    }
+
+    const { item } = found;
+
+    // Initialize subItems array if it doesn't exist
+    if (!item.subItems) {
+        item.subItems = [];
+    }
+
+    const timestamp = Date.now();
+    const newSubItem = {
+        id: `subitem-${timestamp}`,
+        name: 'New Sub-item',
+        description: 'Sub-item description',
+        image: null
+    };
+
+    item.subItems.push(newSubItem);
+    console.log('New sub-item added:', newSubItem);
+    persistData();
+
+    // Re-render the item detail page
+    const itemContainer = document.getElementById('itemDetailContainer');
+    if (itemContainer) renderItemDetail(itemContainer);
+}
+
+function deleteSubItem(parentItemId, subItemIndex) {
+    const found = findItemById(parentItemId);
+    if (!found) return;
+
+    const { item } = found;
+    if (!item.subItems || !item.subItems[subItemIndex]) return;
+
+    const subItem = item.subItems[subItemIndex];
+
+    if (confirm(`Delete sub-item "${subItem.name}"? This cannot be undone.`)) {
+        item.subItems.splice(subItemIndex, 1);
+        persistData();
+
+        const itemContainer = document.getElementById('itemDetailContainer');
+        if (itemContainer) renderItemDetail(itemContainer);
+    }
 }
 
 function renameCategory(index) {
@@ -2396,6 +2761,131 @@ function renderItemDetail(container) {
         uploadBtn.addEventListener('click', uploadToGitHub);
         document.body.appendChild(uploadBtn);
     }
+
+    // ==================== RENDER SUB-ITEMS ====================
+    renderSubItems(container, foundItem, itemId);
+}
+
+// Helper function to render sub-items on item detail page
+function renderSubItems(container, item, itemId) {
+    // Find or create sub-items container
+    let subItemsContainer = document.getElementById('subItemsContainer');
+    if (subItemsContainer) subItemsContainer.remove();
+
+    const article = container.querySelector('.item-detail');
+    if (!article) return;
+
+    subItemsContainer = document.createElement('div');
+    subItemsContainer.id = 'subItemsContainer';
+    subItemsContainer.style.cssText = 'margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color);';
+
+    // Title
+    const subItemsTitle = document.createElement('h2');
+    subItemsTitle.style.cssText = 'font-size: 1.3rem; margin-bottom: 15px; color: var(--accent-primary);';
+    subItemsTitle.textContent = '📋 Sub-items';
+    subItemsContainer.appendChild(subItemsTitle);
+
+    const subItems = item.subItems || [];
+
+    if (subItems.length === 0 && !(currentUser && currentUser.role === 'admin' && isEditMode)) {
+        // No sub-items and not in edit mode - don't show anything
+        return;
+    }
+
+    // Render each sub-item
+    subItems.forEach((subItem, subItemIndex) => {
+        const subItemDiv = document.createElement('div');
+        subItemDiv.className = 'sub-item-card';
+        subItemDiv.style.cssText = 'background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 3px solid var(--accent-blue);';
+
+        const subItemHeader = document.createElement('div');
+        subItemHeader.style.cssText = 'display: flex; align-items: center; margin-bottom: 10px;';
+
+        // Sub-item Image
+        if (currentUser && currentUser.role === 'admin' && isEditMode) {
+            const imgUploader = createImageUploader(subItem.image, (base64) => {
+                const found = findItemById(itemId);
+                if (found && found.item.subItems && found.item.subItems[subItemIndex]) {
+                    found.item.subItems[subItemIndex].image = base64;
+                    persistData();
+                }
+            });
+            imgUploader.style.marginRight = '12px';
+            subItemHeader.appendChild(imgUploader);
+        } else if (subItem.image) {
+            const imgDisplay = createImageDisplay(subItem.image);
+            if (imgDisplay) {
+                imgDisplay.style.marginRight = '12px';
+                subItemHeader.appendChild(imgDisplay);
+            }
+        }
+
+        // Sub-item Name
+        const subItemName = document.createElement('h4');
+        subItemName.style.cssText = 'margin: 0; flex: 1;';
+
+        if (currentUser && currentUser.role === 'admin' && isEditMode) {
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'subitem-name-rich rich-editable';
+            nameSpan.innerHTML = subItem.name;
+            nameSpan.dataset.itemId = itemId;
+            nameSpan.dataset.subItemIndex = subItemIndex;
+            nameSpan.dataset.field = 'subItemName';
+            nameSpan.dataset.original = subItem.name;
+            makeRichEditable(nameSpan);
+            subItemName.appendChild(nameSpan);
+
+            // Delete button
+            const delBtn = document.createElement('button');
+            delBtn.textContent = '🗑️';
+            delBtn.title = 'Delete Sub-item';
+            delBtn.style.cssText = 'margin-left: 10px; padding: 4px 8px; background: #ff5252; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;';
+            delBtn.onclick = () => deleteSubItem(itemId, subItemIndex);
+            subItemName.appendChild(delBtn);
+        } else {
+            subItemName.innerHTML = subItem.name;
+        }
+
+        subItemHeader.appendChild(subItemName);
+        subItemDiv.appendChild(subItemHeader);
+
+        // Sub-item Description
+        const subItemDesc = document.createElement('div');
+        subItemDesc.style.cssText = 'color: var(--text-secondary); font-size: 0.95em;';
+
+        if (currentUser && currentUser.role === 'admin' && isEditMode) {
+            subItemDesc.className = 'subitem-desc-rich rich-editable';
+            subItemDesc.innerHTML = subItem.description || 'Click to add description...';
+            subItemDesc.dataset.itemId = itemId;
+            subItemDesc.dataset.subItemIndex = subItemIndex;
+            subItemDesc.dataset.field = 'subItemDescription';
+            subItemDesc.dataset.original = subItem.description || '';
+            makeRichEditable(subItemDesc);
+        } else {
+            subItemDesc.innerHTML = subItem.description || '';
+        }
+
+        subItemDiv.appendChild(subItemDesc);
+        subItemsContainer.appendChild(subItemDiv);
+    });
+
+    // Add Sub-item button
+    if (currentUser && currentUser.role === 'admin' && isEditMode) {
+        const addSubItemBtn = document.createElement('button');
+        addSubItemBtn.textContent = '+ Add Sub-item';
+        addSubItemBtn.className = 'btn-back';
+        addSubItemBtn.style.cssText = 'margin-top: 10px; padding: 8px 16px; background: linear-gradient(135deg, #2196F3, #1976D2); border: none; color: white;';
+        addSubItemBtn.onclick = () => addSubItem(itemId);
+        subItemsContainer.appendChild(addSubItemBtn);
+    }
+
+    // Insert before actions container
+    const actionsContainer = article.querySelector('.actions');
+    if (actionsContainer) {
+        article.insertBefore(subItemsContainer, actionsContainer);
+    } else {
+        article.appendChild(subItemsContainer);
+    }
 }
 
 function toggleItemEdit(isEditing) {
@@ -2471,9 +2961,17 @@ if (searchInput) {
             if (cat.name.toLowerCase().includes(term)) {
                 categoryMatches.push({ type: 'category', category: cat });
             }
+            // Also check subcategories
+            if (cat.subcategories) {
+                cat.subcategories.forEach(subcat => {
+                    if (subcat.name.toLowerCase().includes(term)) {
+                        categoryMatches.push({ type: 'subcategory', category: cat, subcategory: subcat });
+                    }
+                });
+            }
         });
 
-        // Priority 2: Items matching by name
+        // Priority 2: Items matching by name (including items in subcategories)
         const itemNameMatches = [];
         localWikiData.categories.forEach(cat => {
             cat.items.filter(i => hasPermission(i)).forEach(item => {
@@ -2481,9 +2979,19 @@ if (searchInput) {
                     itemNameMatches.push({ type: 'item', item, category: cat });
                 }
             });
+            // Also search in subcategory items
+            if (cat.subcategories) {
+                cat.subcategories.forEach(subcat => {
+                    (subcat.items || []).filter(i => hasPermission(i)).forEach(item => {
+                        if (item.name.toLowerCase().includes(term)) {
+                            itemNameMatches.push({ type: 'item', item, category: cat, subcategory: subcat });
+                        }
+                    });
+                });
+            }
         });
 
-        // Priority 3: Items matching by description
+        // Priority 3: Items matching by description (including items in subcategories)
         const itemDescMatches = [];
         localWikiData.categories.forEach(cat => {
             cat.items.filter(i => hasPermission(i)).forEach(item => {
@@ -2493,6 +3001,17 @@ if (searchInput) {
                     itemDescMatches.push({ type: 'item-desc', item, category: cat });
                 }
             });
+            // Also search in subcategory items
+            if (cat.subcategories) {
+                cat.subcategories.forEach(subcat => {
+                    (subcat.items || []).filter(i => hasPermission(i)).forEach(item => {
+                        if (!item.name.toLowerCase().includes(term) &&
+                            item.description.toLowerCase().includes(term)) {
+                            itemDescMatches.push({ type: 'item-desc', item, category: cat, subcategory: subcat });
+                        }
+                    });
+                });
+            }
         });
 
         // Combine results in priority order
@@ -2503,17 +3022,27 @@ if (searchInput) {
             searchResults.innerHTML = allMatches.map(m => {
                 if (m.type === 'category') {
                     return `
-                < a href = "index.html?category=${m.category.id}" class="search-result-item" >
+                <a href="index.html?category=${m.category.id}" class="search-result-item">
                             <span class="name">📁 ${m.category.name}</span>
                             <span class="cat">Category</span>
-                        </a >
+                        </a>
+                `;
+                } else if (m.type === 'subcategory') {
+                    return `
+                <a href="index.html?category=${m.category.id}&subcategory=${m.subcategory.id}" class="search-result-item">
+                            <span class="name">📂 ${m.subcategory.name}</span>
+                            <span class="cat">${m.category.name} > Subcategory</span>
+                        </a>
                 `;
                 } else {
+                    const catPath = m.subcategory
+                        ? `${m.category.name} > ${m.subcategory.name}`
+                        : m.category.name;
                     return `
-                < a href = "item.html?id=${m.item.id}" class="search-result-item" >
+                <a href="item.html?id=${m.item.id}" class="search-result-item">
                             <span class="name">${m.item.name}</span>
-                            <span class="cat">${m.category.name}</span>
-                        </a >
+                            <span class="cat">${catPath}</span>
+                        </a>
                 `;
                 }
             }).join('');

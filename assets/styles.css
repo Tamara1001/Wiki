@@ -1135,3 +1135,112 @@ footer {
 .sidebar-nav a.has-formatting font {
     -webkit-text-fill-color: currentColor !important;
 }
+
+/* Subcategory Styles */
+.subcategory-group {
+    margin-top: 30px;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    border-left: 3px solid var(--accent-primary);
+}
+
+.subcategory-header-wrapper {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.subcategory-title-rich {
+    cursor: text;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.subcategory-title-rich:hover {
+    background: rgba(0, 212, 170, 0.05);
+}
+
+.subcategory-title-rich:focus {
+    outline: none;
+    background: rgba(0, 212, 170, 0.1);
+}
+
+.subcategory-title-rich font {
+    -webkit-text-fill-color: currentColor !important;
+}
+
+.subcategory-description {
+    color: var(--text-secondary);
+    margin-bottom: 15px;
+    font-style: italic;
+}
+
+/* Sub-item Styles */
+.sub-item-card {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    border-left: 3px solid var(--accent-blue);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sub-item-card:hover {
+    transform: translateX(3px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.subitem-name-rich {
+    cursor: text;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.subitem-name-rich:hover {
+    background: rgba(0, 212, 170, 0.05);
+}
+
+.subitem-name-rich:focus {
+    outline: none;
+    background: rgba(0, 212, 170, 0.1);
+}
+
+.subitem-name-rich font {
+    -webkit-text-fill-color: currentColor !important;
+}
+
+.subitem-desc-rich {
+    min-height: 40px;
+    padding: 8px;
+    border-radius: 6px;
+    transition: background 0.2s ease;
+}
+
+.subitem-desc-rich:hover {
+    background: rgba(0, 212, 170, 0.03);
+}
+
+.subitem-desc-rich:focus {
+    outline: none;
+    background: rgba(0, 212, 170, 0.08);
+}
+
+/* Sidebar subcategory indentation */
+.nav-subcategories {
+    margin-left: 15px;
+    margin-top: 4px;
+    border-left: 1px solid var(--border-color);
+    padding-left: 10px;
+}
+
+.nav-subcategories li {
+    margin-bottom: 4px;
+}
+
+.nav-subcategories a {
+    font-size: 0.9em;
+    opacity: 0.85;
+}

@@ -27,32 +27,32 @@ let localWikiData = null; // Stores modified data
 let isEditMode = false; // Toggle for admin edit controls
 
 // Initialize wiki data from storage if available
-// Use localStorage cache if: admin is editing OR recent upload (CDN cache delay)
+// Always use localStorage if it has data (to preserve local changes)
 function loadWikiData() {
-    const isAdminEditSession = sessionStorage.getItem('isEditMode') === 'true';
     const stored = localStorage.getItem('modifiedWikiData');
     const lastUpload = localStorage.getItem('lastUploadTime');
 
     // Check if there was a recent upload (within 15 minutes - covers CDN cache delay)
     const recentUpload = lastUpload && (Date.now() - parseInt(lastUpload)) < 15 * 60 * 1000;
 
-    if (stored && (isAdminEditSession || recentUpload)) {
-        // Admin in edit mode OR recent upload - use localStorage to preserve data
+    if (stored) {
+        // Use localStorage data if it exists (preserves all local changes)
         try {
             localWikiData = JSON.parse(stored);
-            console.log('Using localStorage data (edit mode or recent upload)');
+            console.log('Using localStorage data (local changes preserved)');
         } catch (e) {
             console.error('Failed to parse local wiki data', e);
             localWikiData = JSON.parse(JSON.stringify(wikiData));
         }
     } else {
-        // Regular viewing - use fresh data from data.js (GitHub)
+        // No localStorage - use fresh data from data.js (GitHub)
         localWikiData = JSON.parse(JSON.stringify(wikiData));
-        // Clear old upload timestamp if CDN has had time to refresh
-        if (lastUpload && !recentUpload) {
-            localStorage.removeItem('lastUploadTime');
-            localStorage.removeItem('modifiedWikiData');
-        }
+        console.log('Using fresh data from data.js');
+    }
+
+    // Clear old upload timestamp if CDN has had time to refresh
+    if (lastUpload && !recentUpload) {
+        localStorage.removeItem('lastUploadTime');
     }
 }
 
@@ -265,6 +265,9 @@ function createFloatingToolbar() {
         </select>
         <input type="color" id="floatingCustomColor" style="width:0;height:0;opacity:0;position:absolute;">
         <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
+        <button type="button" id="floatingInsertImageBtn" title="Insert Image">📷</button>
+        <input type="file" id="floatingImageInput" accept="image/*" style="display:none;">
+        <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
         <button type="button" data-cmd="removeFormat" title="Clear Formatting">⌫</button>
         <button type="button" id="closeToolbarBtn" title="Close Toolbar">✕</button>
     `;
@@ -344,10 +347,111 @@ function createFloatingToolbar() {
         }, 50);
     });
 
+    // Image insert button handler
+    const insertImageBtn = toolbar.querySelector('#floatingInsertImageBtn');
+    const imageInput = toolbar.querySelector('#floatingImageInput');
+
+    insertImageBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        imageInput.click();
+    });
+
+    imageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file || !activeEditableField) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            // Resize image to reasonable size (max 400px)
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                const maxWidth = 400;
+                const maxHeight = 400;
+                let width = tempImg.width;
+                let height = tempImg.height;
+
+                if (width > maxWidth) {
+                    height = (height * maxWidth) / width;
+                    width = maxWidth;
+                }
+                if (height > maxHeight) {
+                    width = (width * maxHeight) / height;
+                    height = maxHeight;
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(tempImg, 0, 0, width, height);
+                const base64 = canvas.toDataURL('image/png');
+
+                // Insert image at cursor position in active field
+                activeEditableField.focus();
+                const img = document.createElement('img');
+                img.src = base64;
+                img.className = 'desc-inline-image';
+                img.style.cssText = 'max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block; cursor: pointer;';
+                img.title = 'Click to delete this image';
+
+                // Insert at selection
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    range.deleteContents();
+                    range.insertNode(img);
+                    range.setStartAfter(img);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    activeEditableField.appendChild(img);
+                }
+
+                // Add delete handler to the new image
+                setupInlineImageDeleteHandler(img);
+            };
+            tempImg.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        // Reset input so same file can be selected again
+        imageInput.value = '';
+    });
+
     document.body.appendChild(toolbar);
     floatingToolbar = toolbar;
 
     return toolbar;
+}
+
+// Global function to setup delete handler for inline images
+function setupInlineImageDeleteHandler(img) {
+    img.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Show confirmation state
+        if (img.dataset.confirmDelete === 'true') {
+            // Second click - delete the image
+            img.remove();
+        } else {
+            // First click - show confirmation state
+            img.dataset.confirmDelete = 'true';
+            img.style.outline = '3px solid #ff5252';
+            img.style.opacity = '0.7';
+            img.title = 'Click again to DELETE this image';
+
+            // Reset after 3 seconds
+            setTimeout(() => {
+                if (img.parentNode) {
+                    img.dataset.confirmDelete = '';
+                    img.style.outline = '';
+                    img.style.opacity = '';
+                    img.title = 'Click to delete this image';
+                }
+            }, 3000);
+        }
+    });
 }
 
 function showFloatingToolbar(element) {
@@ -415,6 +519,14 @@ function makeRichEditable(element, options = {}) {
     if (options.onInput) {
         element.addEventListener('input', options.onInput);
     }
+
+    // Setup delete handlers for existing inline images
+    element.querySelectorAll('img').forEach(img => {
+        img.className = 'desc-inline-image';
+        img.style.cursor = 'pointer';
+        img.title = 'Click to delete this image';
+        setupInlineImageDeleteHandler(img);
+    });
 }
 // ==================== END RICH TEXT TOOLBAR ====================
 
@@ -762,7 +874,14 @@ function renderNavigation() {
         const li = document.createElement('li');
         const a = document.createElement('a');
         a.href = `index.html?category=${category.id}`;
-        a.textContent = category.name;
+        a.innerHTML = category.name;
+
+        // Check if name has formatting
+        const hasFormatting = /<font|<span|style=|color[=:]/i.test(category.name);
+        if (hasFormatting) {
+            a.classList.add('has-formatting');
+        }
+
         a.addEventListener('click', () => {
             if (window.innerWidth <= 768) toggleSidebar();
         });
@@ -942,17 +1061,19 @@ function renderHome(container) {
             h2.style.cssText = 'margin: 0;';
 
             if (currentUser && currentUser.role === 'admin' && isEditMode) {
-                // Inline editable category name
+                // Inline editable category name with rich text
                 const catNameSpan = document.createElement('span');
-                catNameSpan.className = 'inline-editable';
-                catNameSpan.contentEditable = 'true';
-                catNameSpan.textContent = category.name;
+                catNameSpan.className = 'category-title-rich';
+                catNameSpan.innerHTML = category.name;
                 catNameSpan.dataset.catIndex = catIndex;
                 catNameSpan.dataset.field = 'name';
                 catNameSpan.dataset.original = category.name;
 
+                // Use rich text editing
+                makeRichEditable(catNameSpan);
+
                 catNameSpan.addEventListener('input', () => {
-                    if (catNameSpan.textContent !== catNameSpan.dataset.original) {
+                    if (catNameSpan.innerHTML !== catNameSpan.dataset.original) {
                         catNameSpan.classList.add('changed');
                     } else {
                         catNameSpan.classList.remove('changed');
@@ -962,9 +1083,14 @@ function renderHome(container) {
                 h2.appendChild(catNameSpan);
             } else {
                 // Create link for category page (normal view)
+                // Check if name has formatting
+                const hasFormatting = (html) => /<font|<span|style=|color[=:]/i.test(html);
                 const catLink = document.createElement('a');
                 catLink.href = `index.html?category=${category.id}`;
-                catLink.textContent = category.name;
+                catLink.innerHTML = category.name;
+                if (hasFormatting(category.name)) {
+                    catLink.classList.add('has-formatting');
+                }
                 catLink.style.cssText = 'color: inherit; text-decoration: none; cursor: pointer;';
                 catLink.onmouseover = () => catLink.style.color = 'var(--accent-blue)';
                 catLink.onmouseout = () => catLink.style.color = 'inherit';
@@ -1237,19 +1363,22 @@ function saveAllChanges() {
     }
 
     // Collect all editable elements with changes (categories)
-    document.querySelectorAll('.inline-editable, .rich-editable').forEach(el => {
+    document.querySelectorAll('.inline-editable, .rich-editable, .category-title-rich, .category-description').forEach(el => {
         const catIndex = parseInt(el.dataset.catIndex);
         const field = el.dataset.field;
-        // Use innerHTML for rich-editable, textContent for simple inputs
-        const isRichText = el.classList.contains('rich-editable') || el.contentEditable === 'true';
-        const newValue = el.tagName === 'INPUT' ? el.value.trim() : (isRichText ? el.innerHTML : el.textContent.trim());
-        const original = el.dataset.original;
 
-        if (newValue !== original && !isNaN(catIndex)) {
+        // Skip if no catIndex or field
+        if (isNaN(catIndex) || !field) return;
+
+        // Always use innerHTML for rich text content
+        const newValue = el.innerHTML.trim();
+        const original = el.dataset.original || '';
+
+        if (newValue !== original) {
             const category = localWikiData.categories[catIndex];
             if (category) {
                 if (field === 'name') {
-                    category.name = el.textContent.trim(); // Names should stay plain text
+                    category.name = newValue;
                     changesMade++;
                 } else if (field === 'description') {
                     category.description = newValue;
@@ -1272,8 +1401,8 @@ function saveAllChanges() {
             for (const cat of localWikiData.categories) {
                 const item = cat.items.find(i => i.id === itemId);
                 if (item) {
-                    if (nameEl && nameEl.textContent.trim() !== nameEl.dataset.original) {
-                        item.name = nameEl.textContent.trim();
+                    if (nameEl && nameEl.innerHTML.trim() !== nameEl.dataset.original) {
+                        item.name = nameEl.innerHTML.trim();
                         changesMade++;
                     }
                     if (descEl && descEl.innerHTML.trim() !== descEl.dataset.original) {
@@ -1916,10 +2045,10 @@ function renderItemDetail(container) {
 
             contentHtml = `
                 <div class="breadcrumb">
-                    <a href="index.html">Home</a> &gt; <a href="index.html?category=${foundCategory.id}">${foundCategory.name}</a> &gt; <span class="inline-editable" id="item-name-edit" contenteditable="true" data-field="name" data-original="${foundItem.name}">${foundItem.name}</span>
+                    <a href="index.html">Home</a> &gt; <a href="index.html?category=${foundCategory.id}">${foundCategory.name}</a> &gt; <span id="item-name-breadcrumb">${foundItem.name}</span>
                 </div>
                 <article class="item-detail">
-                    <h1 class="inline-editable" id="item-title-edit" contenteditable="true" data-field="name" data-original="${foundItem.name}">${foundItem.name}</h1>
+                    <h1 class="rich-editable item-title-rich" id="item-title-edit" data-field="name" data-original="${escapeHtml(foundItem.name)}">${foundItem.name}</h1>
                     
                     <div class="item-description">
                         <div class="rich-text-toolbar" id="descToolbar">
@@ -1986,9 +2115,14 @@ function renderItemDetail(container) {
                 });
             });
 
-            // Sync title and breadcrumb name
-            document.getElementById('item-title-edit').addEventListener('input', (e) => {
-                document.getElementById('item-name-edit').textContent = e.target.textContent;
+            // Make item title rich editable with floating toolbar
+            const titleEdit = document.getElementById('item-title-edit');
+            makeRichEditable(titleEdit);
+
+            // Sync title and breadcrumb name (use textContent for breadcrumb)
+            titleEdit.addEventListener('input', (e) => {
+                // Extract plain text for breadcrumb display
+                document.getElementById('item-name-breadcrumb').textContent = e.target.textContent;
             });
 
             // Rich Text Toolbar Handlers
@@ -2147,16 +2281,16 @@ function renderItemDetail(container) {
                 newSection.dataset.index = currentCount;
                 newSection.style.cssText = 'background: linear-gradient(135deg, rgba(156, 39, 176, 0.15), rgba(156, 39, 176, 0.05)); padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid #9c27b0;';
                 newSection.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                < div style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;" >
                         <span style="color: #9c27b0; font-weight: 600;">Hidden Info #${currentCount + 1}</span>
                         <button class="delete-hidden-info-btn btn-danger" data-index="${currentCount}" style="border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Delete</button>
-                    </div>
+                    </div >
                     <textarea class="hidden-info-content" data-index="${currentCount}" style="width: 100%; min-height: 60px; padding: 10px; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 4px; resize: vertical;" placeholder="Enter hidden information content..."></textarea>
                     <div style="margin-top: 10px;">
                         <label style="color: var(--text-secondary); font-size: 0.85em;">Visible to Characters (comma separated):</label>
                         <input type="text" class="hidden-info-restricted" data-index="${currentCount}" style="width: 100%; padding: 8px; background: var(--bg-card); color: white; border: 1px solid var(--border-color); border-radius: 4px; margin-top: 5px;" placeholder="Leave empty for all">
                     </div>
-                `;
+            `;
                 container.appendChild(newSection);
 
                 // Add delete handler for new section
@@ -2204,12 +2338,16 @@ function renderItemDetail(container) {
 
         } else {
             // Normal View Mode (non-admin or not in edit mode)
+            // Check if title has formatting
+            const hasFormatting = (html) => /<font|<span|style=|color[=:]/i.test(html);
+            const titleClass = hasFormatting(foundItem.name) ? 'has-formatting' : '';
+
             contentHtml = `
                 <div class="breadcrumb">
-                    <a href="index.html">Home</a> &gt; <a href="index.html#${foundCategory.id}">${foundCategory.name}</a> &gt; ${foundItem.name}
+                    <a href="index.html">Home</a> &gt; <a href="index.html#${foundCategory.id}">${foundCategory.name}</a> &gt; <span class="${titleClass}">${foundItem.name}</span>
                 </div>
                 <article class="item-detail">
-                    <h1>${foundItem.name}</h1>
+                    <h1 class="${titleClass}">${foundItem.name}</h1>
                     
                     <div class="item-description">
                         <p>${foundItem.description}</p>
@@ -2280,7 +2418,7 @@ function saveItemEdit(itemId) {
     document.querySelectorAll('.hidden-info-content').forEach(textarea => {
         const index = parseInt(textarea.dataset.index);
         const content = textarea.value.trim();
-        const restrictedInput = document.querySelector(`.hidden-info-restricted[data-index="${index}"]`);
+        const restrictedInput = document.querySelector(`.hidden - info - restricted[data - index="${index}"]`);
         const restrictedTo = restrictedInput ? restrictedInput.value.split(',').map(t => t.trim()).filter(t => t) : [];
 
         if (content) {
@@ -2365,18 +2503,18 @@ if (searchInput) {
             searchResults.innerHTML = allMatches.map(m => {
                 if (m.type === 'category') {
                     return `
-                        <a href="index.html?category=${m.category.id}" class="search-result-item">
+                < a href = "index.html?category=${m.category.id}" class="search-result-item" >
                             <span class="name">📁 ${m.category.name}</span>
                             <span class="cat">Category</span>
-                        </a>
-                    `;
+                        </a >
+                `;
                 } else {
                     return `
-                        <a href="item.html?id=${m.item.id}" class="search-result-item">
+                < a href = "item.html?id=${m.item.id}" class="search-result-item" >
                             <span class="name">${m.item.name}</span>
                             <span class="cat">${m.category.name}</span>
-                        </a>
-                    `;
+                        </a >
+                `;
                 }
             }).join('');
         } else {

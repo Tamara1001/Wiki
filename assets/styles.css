@@ -961,7 +961,8 @@ footer {
 /* Preserve custom formatting even when not in edit mode */
 .hero h1.has-formatting,
 .hero p.has-formatting,
-.item-detail h1.has-formatting {
+.item-detail h1.has-formatting,
+.breadcrumb span.has-formatting {
     -webkit-text-fill-color: currentColor !important;
     background: none !important;
     background-clip: border-box !important;
@@ -969,10 +970,29 @@ footer {
     color: inherit !important;
 }
 
+/* Item title rich editable */
+.item-title-rich {
+    cursor: text;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.item-title-rich:hover {
+    background: rgba(0, 212, 170, 0.05);
+    border-radius: 4px;
+}
+
+.item-title-rich:focus {
+    outline: none;
+    background: rgba(0, 212, 170, 0.1);
+    border-radius: 4px;
+}
+
 /* Ensure font tags inside formatted elements show their colors */
 .hero h1.has-formatting font,
 .hero p.has-formatting font,
-.item-detail h1.has-formatting font {
+.item-detail h1.has-formatting font,
+.item-title-rich font,
+.breadcrumb span.has-formatting font {
     -webkit-text-fill-color: currentColor !important;
 }
 
@@ -1044,11 +1064,74 @@ footer {
 }
 
 /* Image in view mode (non-editing) should not have delete cursor */
-.item-description:not([contenteditable="true"]) .desc-inline-image {
+.item-description:not([contenteditable="true"]) .desc-inline-image,
+.category-description:not([contenteditable="true"]) .desc-inline-image,
+.rich-editable:not([contenteditable="true"]) .desc-inline-image {
     cursor: default;
 }
 
-.item-description:not([contenteditable="true"]) .desc-inline-image:hover {
+.item-description:not([contenteditable="true"]) .desc-inline-image:hover,
+.category-description:not([contenteditable="true"]) .desc-inline-image:hover,
+.rich-editable:not([contenteditable="true"]) .desc-inline-image:hover {
     outline: none;
     opacity: 1;
+}
+
+/* Category description rich editing */
+.category-description.rich-editable {
+    min-height: 60px;
+    padding: 10px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+}
+
+.category-description.rich-editable:hover {
+    background: rgba(0, 212, 170, 0.05);
+}
+
+.category-description.rich-editable:focus {
+    background: rgba(0, 212, 170, 0.1);
+}
+
+/* Category title rich editable */
+.category-title-rich {
+    cursor: text;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.category-title-rich:hover {
+    background: rgba(0, 212, 170, 0.05);
+}
+
+.category-title-rich:focus {
+    outline: none;
+    background: rgba(0, 212, 170, 0.1);
+}
+
+/* Formatted category links in view mode */
+.category-group h2 a.has-formatting {
+    -webkit-text-fill-color: currentColor !important;
+    background: none !important;
+}
+
+.category-group h2 a.has-formatting font {
+    -webkit-text-fill-color: currentColor !important;
+}
+
+/* Category title formatting */
+.category-title-rich font,
+.category-group h2 a font {
+    -webkit-text-fill-color: currentColor !important;
+}
+
+/* Sidebar navigation formatted links */
+.sidebar-nav a.has-formatting {
+    -webkit-text-fill-color: currentColor !important;
+    background: none !important;
+}
+
+.sidebar-nav a.has-formatting font {
+    -webkit-text-fill-color: currentColor !important;
 }

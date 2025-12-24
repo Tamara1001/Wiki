@@ -90,7 +90,72 @@ function createImageUploader(currentImage, onImageChange) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;';
+    input.className = 'image-upload-input';
+    input.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 1;';
+
+    // Delete button overlay
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'image-delete-btn';
+    deleteBtn.innerHTML = '✕';
+    deleteBtn.title = 'Delete image';
+    deleteBtn.style.cssText = `
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #ff5252;
+        color: white;
+        border: 2px solid var(--bg-card, #1a1a1a);
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 10;
+        padding: 0;
+        line-height: 1;
+    `;
+
+    // Show/hide delete button based on whether there's an image
+    function updateDeleteButton() {
+        // Check if there's a real image (not the placeholder)
+        const hasImage = img.src && !img.src.includes('data:image/svg+xml');
+        deleteBtn.style.display = hasImage ? 'flex' : 'none';
+    }
+
+    // Show delete button on hover
+    container.addEventListener('mouseenter', () => {
+        updateDeleteButton();
+        if (deleteBtn.style.display !== 'none') {
+            deleteBtn.style.opacity = '1';
+        }
+    });
+
+    container.addEventListener('mouseleave', () => {
+        deleteBtn.style.opacity = '0';
+    });
+
+    // Handle delete click
+    deleteBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Set to placeholder image
+        img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect fill="%23333" width="64" height="64"/><text x="32" y="36" text-anchor="middle" fill="%23666" font-size="10">No Image</text></svg>';
+
+        // Call the callback with null/empty to remove the image
+        onImageChange(null);
+
+        // Hide the delete button
+        deleteBtn.style.display = 'none';
+        deleteBtn.style.opacity = '0';
+    });
 
     input.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -109,6 +174,7 @@ function createImageUploader(currentImage, onImageChange) {
                 const base64 = canvas.toDataURL('image/png');
                 img.src = base64;
                 onImageChange(base64);
+                updateDeleteButton();
             };
             tempImg.src = event.target.result;
         };
@@ -117,7 +183,11 @@ function createImageUploader(currentImage, onImageChange) {
 
     container.appendChild(img);
     container.appendChild(input);
+    container.appendChild(deleteBtn);
     container.title = 'Click to upload image (64x64)';
+
+    // Initial check for delete button visibility
+    updateDeleteButton();
 
     return container;
 }
@@ -1874,6 +1944,9 @@ function renderItemDetail(container) {
                             </select>
                             <input type="color" id="customColorPicker" style="width: 0; height: 0; opacity: 0; position: absolute;" title="Pick custom color">
                             <span class="toolbar-divider"></span>
+                            <button type="button" id="insertImageBtn" title="Insert Image">📷</button>
+                            <input type="file" id="descImageInput" accept="image/*" style="display: none;">
+                            <span class="toolbar-divider"></span>
                             <button type="button" data-cmd="removeFormat" title="Clear Formatting">✕</button>
                         </div>
                         <div class="inline-editable rich-text-content" id="item-desc-edit" contenteditable="true" data-field="description" data-original="${escapeHtml(foundItem.description)}" style="min-height: 150px;">${foundItem.description}</div>
@@ -1948,6 +2021,116 @@ function renderItemDetail(container) {
             customColorPicker.addEventListener('input', (e) => {
                 document.execCommand('foreColor', false, e.target.value);
                 document.getElementById('item-desc-edit').focus();
+            });
+
+            // Insert Image handler
+            const insertImageBtn = document.getElementById('insertImageBtn');
+            const descImageInput = document.getElementById('descImageInput');
+            const descEdit = document.getElementById('item-desc-edit');
+
+            insertImageBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                descImageInput.click();
+            });
+
+            descImageInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    // Resize image to reasonable size (max 400px wide)
+                    const tempImg = new Image();
+                    tempImg.onload = () => {
+                        const maxWidth = 400;
+                        const maxHeight = 400;
+                        let width = tempImg.width;
+                        let height = tempImg.height;
+
+                        if (width > maxWidth) {
+                            height = (height * maxWidth) / width;
+                            width = maxWidth;
+                        }
+                        if (height > maxHeight) {
+                            width = (width * maxHeight) / height;
+                            height = maxHeight;
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(tempImg, 0, 0, width, height);
+                        const base64 = canvas.toDataURL('image/png');
+
+                        // Insert image at cursor position
+                        descEdit.focus();
+                        const img = document.createElement('img');
+                        img.src = base64;
+                        img.className = 'desc-inline-image';
+                        img.style.cssText = 'max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block; cursor: pointer;';
+                        img.title = 'Click to delete this image';
+
+                        // Insert at selection
+                        const selection = window.getSelection();
+                        if (selection.rangeCount > 0) {
+                            const range = selection.getRangeAt(0);
+                            range.deleteContents();
+                            range.insertNode(img);
+                            range.setStartAfter(img);
+                            range.collapse(true);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        } else {
+                            descEdit.appendChild(img);
+                        }
+
+                        // Add delete handler to the new image
+                        setupImageDeleteHandler(img);
+                    };
+                    tempImg.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+                // Reset input so same file can be selected again
+                descImageInput.value = '';
+            });
+
+            // Function to setup delete handler for inline images
+            function setupImageDeleteHandler(img) {
+                img.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Show confirmation tooltip/overlay
+                    if (img.dataset.confirmDelete === 'true') {
+                        // Second click - delete the image
+                        img.remove();
+                    } else {
+                        // First click - show confirmation state
+                        img.dataset.confirmDelete = 'true';
+                        img.style.outline = '3px solid #ff5252';
+                        img.style.opacity = '0.7';
+                        img.title = 'Click again to DELETE this image';
+
+                        // Reset after 3 seconds
+                        setTimeout(() => {
+                            if (img.parentNode) {
+                                img.dataset.confirmDelete = '';
+                                img.style.outline = '';
+                                img.style.opacity = '';
+                                img.title = 'Click to delete this image';
+                            }
+                        }, 3000);
+                    }
+                });
+            }
+
+            // Setup delete handlers for existing inline images
+            descEdit.querySelectorAll('img').forEach(img => {
+                img.className = 'desc-inline-image';
+                img.style.cursor = 'pointer';
+                img.title = 'Click to delete this image';
+                setupImageDeleteHandler(img);
             });
 
             // Add Hidden Info button

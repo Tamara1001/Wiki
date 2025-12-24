@@ -975,3 +975,80 @@ footer {
 .item-detail h1.has-formatting font {
     -webkit-text-fill-color: currentColor !important;
 }
+
+/* Image Upload Container & Delete Button */
+.image-upload-container {
+    position: relative;
+    display: inline-block;
+}
+
+.image-upload-container:hover .image-delete-btn {
+    opacity: 1 !important;
+}
+
+.image-delete-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-danger, #ff5252);
+    color: white;
+    border: 2px solid var(--bg-card, #1a1a1a);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+    z-index: 10;
+    padding: 0;
+    line-height: 1;
+}
+
+.image-delete-btn:hover {
+    background: var(--accent-danger-hover, #d32f2f);
+    transform: scale(1.1);
+}
+
+.image-upload-container .entity-image {
+    transition: opacity 0.2s ease;
+}
+
+.image-upload-container:hover .entity-image {
+    opacity: 0.8;
+}
+
+/* Inline Description Images */
+.desc-inline-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 10px 0;
+    display: block;
+    cursor: pointer;
+    transition: opacity 0.2s ease, outline 0.2s ease, transform 0.2s ease;
+}
+
+.desc-inline-image:hover {
+    opacity: 0.9;
+    outline: 2px solid var(--accent-primary, #00d4aa);
+}
+
+.desc-inline-image[data-confirm-delete="true"] {
+    outline: 3px solid var(--accent-danger, #ff5252) !important;
+    opacity: 0.7 !important;
+}
+
+/* Image in view mode (non-editing) should not have delete cursor */
+.item-description:not([contenteditable="true"]) .desc-inline-image {
+    cursor: default;
+}
+
+.item-description:not([contenteditable="true"]) .desc-inline-image:hover {
+    outline: none;
+    opacity: 1;
+}

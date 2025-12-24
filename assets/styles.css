@@ -317,15 +317,15 @@ main {
 
 /* Hero Section */
 .hero {
-    margin-bottom: var(--spacing-xl);
-    padding: var(--spacing-xl) 0;
+    margin-bottom: 15px;
+    padding: 15px 0;
     border-bottom: 1px solid var(--border-color);
     background: var(--gradient-subtle);
 }
 
 .hero h1 {
     font-size: 2.75rem;
-    margin-bottom: var(--spacing-md);
+    margin-bottom: 8px;
     background: linear-gradient(135deg, var(--accent-primary), #00a896);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -345,7 +345,7 @@ main {
 .content-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: var(--spacing-lg);
+    gap: 10px;
 }
 
 .category-group {
@@ -455,12 +455,20 @@ footer {
 
 /* NEW STYLES FOR REFACTOR */
 
+.category-group {
+    margin-top: 5px;
+    margin-bottom: 0;
+    padding: 4px;
+    border-bottom: 1px solid var(--border-color);
+    /* Add separator for visual distinction if touching */
+}
+
 /* List View (Index) */
 .item-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: var(--spacing-md);
-    padding: var(--spacing-sm) 0;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 6px;
+    padding: 0;
 }
 
 .item-list li {
@@ -480,16 +488,17 @@ footer {
 
 .item-link {
     display: block;
-    padding: var(--spacing-md);
+    padding: 6px 10px;
     color: var(--text-primary);
     text-decoration: none;
 }
 
 .item-link .item-name {
     display: block;
-    font-weight: 600;
+    font-weight: 500;
+    font-size: 0.9rem;
     color: var(--accent-primary);
-    margin-bottom: 6px;
+    margin-bottom: 0;
 }
 
 .item-link .item-desc-short {

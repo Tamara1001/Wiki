@@ -1243,7 +1243,7 @@ function renderHome(container) {
 
             // MAKE HEADER CLICKABLE (or editable in Edit Mode)
             const h2 = document.createElement('h2');
-            h2.style.cssText = 'margin: 0;';
+            h2.style.cssText = 'margin: 0; font-size: 1.15rem;';
 
             if (currentUser && currentUser.role === 'admin' && isEditMode) {
                 // Inline editable category name with rich text
@@ -1429,10 +1429,8 @@ function renderHome(container) {
                         });
                     }
 
-                    // Only show description on category/subcategory page, not main page
-                    const descHtml = (filterCategoryId || filterSubcategoryId)
-                        ? `<span class="item-desc-short">${item.description || ''}</span>`
-                        : '';
+                    // Only show description on Item Page (so hidden in lists)
+                    const descHtml = '';
 
                     // Find actual item index in category for image updates
                     const actualItemIndex = category.items.findIndex(i => i.id === item.id);
@@ -1452,24 +1450,25 @@ function renderHome(container) {
                                 persistData();
                             }
                         });
-                        imageUploader.style.cssText = 'width: 48px; height: 48px; flex-shrink: 0; margin-right: 10px; position: relative;';
-                        imageUploader.querySelector('img').style.cssText = 'width: 48px; height: 48px; object-fit: cover; border-radius: 6px; background: var(--bg-secondary); border: 2px dashed var(--border-color);';
+                        imageUploader.style.cssText = 'width: 32px; height: 32px; flex-shrink: 0; margin-right: 8px; position: relative;';
+                        imageUploader.querySelector('img').style.cssText = 'width: 32px; height: 32px; object-fit: cover; border-radius: 6px; background: var(--bg-secondary); border: 2px dashed var(--border-color);';
                         li.appendChild(imageUploader);
 
                         a.style.cssText = 'flex: 1;';
                         a.innerHTML = `
-                            <span class="item-name">${item.name}${adminBadge}</span>
-                            ${descHtml}
+                            <span class="item-name" style="font-size: 0.85em;">${item.name}${adminBadge}</span>
                         `;
                         li.appendChild(a);
                     } else {
-                        // Normal view
+                        const imageHtml = item.image
+                            ? `<img src="${item.image}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:6px;margin-right:8px;flex-shrink:0;">`
+                            : '';
+
                         a.style.cssText = 'display: flex; align-items: center;';
                         a.innerHTML = `
                             ${imageHtml}
                             <div style="flex:1;">
-                                <span class="item-name">${item.name}${adminBadge}</span>
-                                ${descHtml}
+                                <span class="item-name" style="font-size: 0.85em;">${item.name}${adminBadge}</span>
                             </div>
                         `;
                         li.appendChild(a);
@@ -1508,7 +1507,7 @@ function renderHome(container) {
                     const subcatGroup = document.createElement('div');
                     subcatGroup.className = 'subcategory-group';
                     subcatGroup.id = subcat.id;
-                    subcatGroup.style.cssText = 'margin-top: 30px; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; border-left: 3px solid var(--accent-primary);';
+                    subcatGroup.style.cssText = 'margin-top: 10px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; border-left: 2px solid var(--accent-primary);';
 
                     // Subcategory Drag and Drop (Edit Mode Only)
                     if (currentUser && currentUser.role === 'admin' && isEditMode) {
@@ -1574,7 +1573,7 @@ function renderHome(container) {
                     // Subcategory Header
                     const subcatHeader = document.createElement('div');
                     subcatHeader.className = 'subcategory-header-wrapper';
-                    subcatHeader.style.cssText = 'display: flex; align-items: center; margin-bottom: 15px;';
+                    subcatHeader.style.cssText = 'display: flex; align-items: center; margin-bottom: 8px;';
 
                     // Subcategory Image
                     if (currentUser && currentUser.role === 'admin' && isEditMode) {
@@ -1594,7 +1593,7 @@ function renderHome(container) {
 
                     // Subcategory Title
                     const subcatTitle = document.createElement('h3');
-                    subcatTitle.style.cssText = 'margin: 0; font-size: 1.2rem;';
+                    subcatTitle.style.cssText = 'margin: 0; font-size: 0.95rem;';
 
                     if (currentUser && currentUser.role === 'admin' && isEditMode) {
                         const subcatNameSpan = document.createElement('span');
@@ -1628,8 +1627,8 @@ function renderHome(container) {
                     subcatHeader.appendChild(subcatTitle);
                     subcatGroup.appendChild(subcatHeader);
 
-                    // Subcategory Description - only show on category page, not main page
-                    if (filterCategoryId) {
+                    // Subcategory Description - only show on subcategory page
+                    if (filterSubcategoryId) {
                         if (currentUser && currentUser.role === 'admin' && isEditMode) {
                             const subcatDescP = document.createElement('p');
                             subcatDescP.className = 'subcategory-description rich-editable';
@@ -1706,19 +1705,17 @@ function renderHome(container) {
                         a.className = 'item-link';
 
                         const imageHtml = item.image
-                            ? `<img src="${item.image}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:6px;margin-right:10px;flex-shrink:0;">`
+                            ? `<img src="${item.image}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:6px;margin-right:8px;flex-shrink:0;">`
                             : '';
 
-                        // Only show description on category page, not main page
-                        const descHtml = filterCategoryId
-                            ? `<span class="item-desc-short">${item.description}</span>`
-                            : '';
+                        // Only show description on Item Page (so hidden in lists)
+                        const descHtml = '';
 
                         a.style.cssText = 'display: flex; align-items: center;';
                         a.innerHTML = `
                             ${imageHtml}
                             <div style="flex:1;">
-                                <span class="item-name">${item.name}</span>
+                                <span class="item-name" style="font-size: 0.85em;">${item.name}</span>
                                 ${descHtml}
                             </div>
                         `;
@@ -3095,7 +3092,7 @@ function renderItemDetail(container) {
                     <h1 class="${titleClass}">${foundItem.name}</h1>
                     
                     <div class="item-description">
-                        <p>${foundItem.description}</p>
+                        <p>${foundItem.description || ''}</p>
                         ${hiddenInfoHtml}
                     </div>
                     
@@ -3304,7 +3301,9 @@ function renderSubItems(container, item, itemId) {
             subItemDesc.dataset.original = subItem.description || '';
             makeRichEditable(subItemDesc);
         } else {
-            subItemDesc.innerHTML = subItem.description || '';
+            // Hide description in list view (view mode) - only visible on sub-item page
+            subItemDesc.innerHTML = '';
+            subItemDesc.style.display = 'none';
         }
 
         subItemDiv.appendChild(subItemDesc);

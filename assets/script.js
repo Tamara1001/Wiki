@@ -126,6 +126,13 @@ function applyAccentColor() {
     document.documentElement.style.setProperty('--accent-glow-strong', `rgba(${r}, ${g}, ${b}, 0.5)`);
 }
 
+// Apply default font size setting
+function applyDefaultFontSize() {
+    // Use saved size or default to 16
+    const fontSize = (localWikiData && localWikiData.defaultFontSize) ? localWikiData.defaultFontSize : '16';
+    document.documentElement.style.setProperty('--description-font-size', fontSize + 'px');
+}
+
 // Helper function to create image upload element
 function createImageUploader(currentImage, onImageChange) {
     const container = document.createElement('div');
@@ -265,6 +272,848 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+// Strip HTML tags from a string (for plain text display)
+function stripHtml(str) {
+    if (!str) return '';
+    return str.replace(/<[^>]*>/g, '');
+}
+
+// ==================== IMAGE RESIZER FOR EDIT MODE ====================
+// Allows resizing images in descriptions by dragging corners
+
+let activeResizableImage = null;
+let resizeStartX = 0;
+let resizeStartY = 0;
+let resizeStartWidth = 0;
+let resizeStartHeight = 0;
+let currentHandle = null;
+
+function initImageResizer() {
+    // Use capture phase to catch clicks before contenteditable processes them
+    document.addEventListener('click', (e) => {
+        // Only in edit mode
+        if (!isEditMode || !currentUser || currentUser.role !== 'admin') return;
+
+        // Check if clicked directly on an image or close to it
+        const target = e.target;
+
+        // Handle resize handles and delete button clicks
+        if (target.closest('.resize-handle') || target.closest('.image-delete-btn')) {
+            return; // Let these be handled by their own handlers
+        }
+
+        // Check if target is an image
+        if (target.tagName === 'IMG') {
+            const contentEditable = target.closest('[contenteditable="true"]');
+            if (contentEditable && !target.closest('.image-resize-wrapper')) {
+                e.preventDefault();
+                e.stopPropagation();
+                selectImageForResize(target);
+                return;
+            }
+        }
+
+        // Clicking outside image - deselect if we have an active one
+        // But NOT if clicking on a toolbar (we want to keep image selected while using toolbar)
+        if (activeResizableImage && !e.target.closest('.image-resize-wrapper')) {
+            // Check if clicking on a toolbar or image control bar
+            const isToolbarClick = e.target.closest('.rich-text-toolbar') ||
+                e.target.closest('#descToolbar') ||
+                e.target.closest('#floatingRichToolbar') ||
+                e.target.closest('.inline-toolbar') ||
+                e.target.closest('.image-control-bar');
+            if (!isToolbarClick) {
+                deselectResizableImage();
+            }
+        }
+    }, true); // Use capture phase!
+
+    // Handle resize dragging
+    document.addEventListener('mousedown', (e) => {
+        const handle = e.target.closest('.resize-handle');
+        if (handle && activeResizableImage) {
+            e.preventDefault();
+            e.stopPropagation();
+            currentHandle = handle.dataset.position;
+            resizeStartX = e.clientX;
+            resizeStartY = e.clientY;
+            resizeStartWidth = activeResizableImage.offsetWidth;
+            resizeStartHeight = activeResizableImage.offsetHeight;
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', stopResize);
+        }
+    }, true); // Use capture phase!
+
+    // Keyboard delete for selected images
+    document.addEventListener('keydown', (e) => {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && activeResizableImage) {
+            const wrapper = activeResizableImage.closest('.image-resize-wrapper');
+            if (wrapper) {
+                e.preventDefault();
+                wrapper.remove();
+                activeResizableImage = null;
+            }
+        }
+    });
+}
+
+function selectImageForResize(img) {
+    // Remove any existing wrapper
+    deselectResizableImage();
+
+    // Determine current mode from existing styles
+    const isInlineMode = img.style.float && img.style.float !== 'none';
+
+    // Create wrapper with resize handles
+    const wrapper = document.createElement('div');
+    wrapper.className = 'image-resize-wrapper';
+    wrapper.contentEditable = 'false'; // Make wrapper atomic - deletes as a unit
+    wrapper.dataset.mode = isInlineMode ? 'inline' : 'block';
+
+    // Apply styles based on mode
+    if (isInlineMode) {
+        wrapper.style.cssText = `
+            display: inline;
+            position: relative;
+            border: 2px solid var(--accent-primary, #00d4aa);
+            border-radius: 4px;
+            box-sizing: border-box;
+            float: ${img.style.float};
+            margin: ${img.style.float === 'left' ? '0 15px 10px 0' : '0 0 10px 15px'};
+        `;
+    } else {
+        wrapper.style.cssText = `
+            display: block;
+            position: relative;
+            border: 2px solid var(--accent-primary, #00d4aa);
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-left: ${img.style.marginLeft || 'auto'};
+            margin-right: ${img.style.marginRight || 'auto'};
+        `;
+    }
+
+    // Insert wrapper in place of image
+    img.parentNode.insertBefore(wrapper, img);
+    wrapper.appendChild(img);
+
+    // Create control bar (above image)
+    const controlBar = document.createElement('div');
+    controlBar.className = 'image-control-bar';
+    controlBar.style.cssText = `
+        position: absolute;
+        top: -36px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 4px;
+        background: var(--bg-card, #1a1a1a);
+        border: 1px solid var(--border-color, #333);
+        border-radius: 6px;
+        padding: 4px;
+        z-index: 20;
+        white-space: nowrap;
+    `;
+
+    // Mode toggle button
+    const modeBtn = document.createElement('button');
+    modeBtn.className = 'image-mode-btn';
+    modeBtn.innerHTML = isInlineMode ? '▣' : '▤';
+    modeBtn.title = isInlineMode ? 'Inline Mode (click for Block)' : 'Block Mode (click for Inline)';
+    modeBtn.style.cssText = `
+        padding: 4px 8px;
+        background: ${isInlineMode ? '#4CAF50' : '#2196F3'};
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    `;
+    modeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleImageMode(img, wrapper);
+    });
+    controlBar.appendChild(modeBtn);
+
+    // Separator
+    const sep1 = document.createElement('span');
+    sep1.style.cssText = 'width: 1px; background: #444; margin: 0 2px;';
+    controlBar.appendChild(sep1);
+
+    // Alignment buttons
+    const alignments = [
+        { align: 'left', icon: '⬅', title: 'Align Left' },
+        { align: 'center', icon: '⬛', title: 'Align Center' },
+        { align: 'right', icon: '➡', title: 'Align Right' }
+    ];
+
+    alignments.forEach(({ align, icon, title }) => {
+        const btn = document.createElement('button');
+        btn.innerHTML = icon;
+        btn.title = title;
+        btn.style.cssText = `
+            padding: 4px 8px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        `;
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            applyImageAlignment(img, wrapper, align);
+        });
+        controlBar.appendChild(btn);
+    });
+
+    // Separator
+    const sep2 = document.createElement('span');
+    sep2.style.cssText = 'width: 1px; background: #444; margin: 0 2px;';
+    controlBar.appendChild(sep2);
+
+    // Delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.innerHTML = '×';
+    deleteBtn.title = 'Delete Image';
+    deleteBtn.style.cssText = `
+        padding: 4px 8px;
+        background: #ff5252;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+    `;
+    deleteBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        wrapper.remove();
+        activeResizableImage = null;
+    });
+    controlBar.appendChild(deleteBtn);
+
+    wrapper.appendChild(controlBar);
+
+    // Add resize handles - only corners
+    const positions = ['nw', 'ne', 'sw', 'se'];
+    positions.forEach(pos => {
+        const handle = document.createElement('div');
+        handle.className = 'resize-handle';
+        handle.dataset.position = pos;
+
+        let posStyle = '';
+        switch (pos) {
+            case 'nw': posStyle = 'top: -5px; left: -5px; cursor: nw-resize;'; break;
+            case 'ne': posStyle = 'top: -5px; right: -5px; cursor: ne-resize;'; break;
+            case 'sw': posStyle = 'bottom: -5px; left: -5px; cursor: sw-resize;'; break;
+            case 'se': posStyle = 'bottom: -5px; right: -5px; cursor: se-resize;'; break;
+        }
+
+        handle.style.cssText = `
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: var(--accent-primary, #00d4aa);
+            border: 2px solid white;
+            border-radius: 50%;
+            z-index: 10;
+            ${posStyle}
+        `;
+        wrapper.appendChild(handle);
+    });
+
+    // Enable drag repositioning in inline mode
+    if (isInlineMode) {
+        enableImageDrag(wrapper);
+    }
+
+    activeResizableImage = img;
+}
+
+// Toggle between Block and Inline modes
+function toggleImageMode(img, wrapper) {
+    const currentMode = wrapper.dataset.mode;
+    const newMode = currentMode === 'block' ? 'inline' : 'block';
+    wrapper.dataset.mode = newMode;
+
+    if (newMode === 'inline') {
+        // Switch to inline (float left by default)
+        img.style.float = 'left';
+        img.style.display = 'inline';
+        img.style.margin = '0 15px 10px 0';
+        wrapper.style.float = 'left';
+        wrapper.style.display = 'inline';
+        wrapper.style.margin = '0 15px 10px 0';
+        wrapper.style.marginLeft = '';
+        wrapper.style.marginRight = '';
+        enableImageDrag(wrapper);
+    } else {
+        // Switch to block (centered by default)
+        img.style.float = 'none';
+        img.style.display = 'block';
+        img.style.margin = '10px auto';
+        img.style.marginLeft = 'auto';
+        img.style.marginRight = 'auto';
+        wrapper.style.float = 'none';
+        wrapper.style.display = 'block';
+        wrapper.style.margin = '10px auto';
+        wrapper.style.marginLeft = 'auto';
+        wrapper.style.marginRight = 'auto';
+        wrapper.draggable = false;
+    }
+
+    // Update mode button
+    const modeBtn = wrapper.querySelector('.image-mode-btn');
+    if (modeBtn) {
+        modeBtn.innerHTML = newMode === 'inline' ? '▣' : '▤';
+        modeBtn.title = newMode === 'inline' ? 'Inline Mode (click for Block)' : 'Block Mode (click for Inline)';
+        modeBtn.style.background = newMode === 'inline' ? '#4CAF50' : '#2196F3';
+    }
+}
+
+// Apply alignment based on current mode
+function applyImageAlignment(img, wrapper, align) {
+    const mode = wrapper.dataset.mode;
+
+    if (mode === 'inline') {
+        // Inline mode: left/right changes float, center switches to block
+        if (align === 'center') {
+            toggleImageMode(img, wrapper); // Switch to block mode centered
+        } else {
+            img.style.float = align;
+            wrapper.style.float = align;
+            if (align === 'left') {
+                img.style.margin = '0 15px 10px 0';
+                wrapper.style.margin = '0 15px 10px 0';
+            } else {
+                img.style.margin = '0 0 10px 15px';
+                wrapper.style.margin = '0 0 10px 15px';
+            }
+        }
+    } else {
+        // Block mode: use margins for alignment
+        img.style.display = 'block';
+        wrapper.style.display = 'block';
+
+        switch (align) {
+            case 'left':
+                img.style.marginLeft = '0';
+                img.style.marginRight = 'auto';
+                wrapper.style.marginLeft = '0';
+                wrapper.style.marginRight = 'auto';
+                break;
+            case 'center':
+                img.style.marginLeft = 'auto';
+                img.style.marginRight = 'auto';
+                wrapper.style.marginLeft = 'auto';
+                wrapper.style.marginRight = 'auto';
+                break;
+            case 'right':
+                img.style.marginLeft = 'auto';
+                img.style.marginRight = '0';
+                wrapper.style.marginLeft = 'auto';
+                wrapper.style.marginRight = '0';
+                break;
+        }
+    }
+}
+
+// Enable drag-to-reposition for inline mode
+function enableImageDrag(wrapper) {
+    wrapper.draggable = true;
+
+    wrapper.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', 'image-reposition');
+        e.dataTransfer.effectAllowed = 'move';
+        wrapper.style.opacity = '0.5';
+    });
+
+    wrapper.addEventListener('dragend', (e) => {
+        wrapper.style.opacity = '1';
+    });
+}
+
+function deselectResizableImage() {
+    if (activeResizableImage) {
+        const wrapper = activeResizableImage.closest('.image-resize-wrapper');
+        if (wrapper) {
+            // Move image out of wrapper
+            wrapper.parentNode.insertBefore(activeResizableImage, wrapper);
+            wrapper.remove();
+        }
+        activeResizableImage = null;
+    }
+}
+
+function handleResize(e) {
+    if (!activeResizableImage || !currentHandle) return;
+
+    const deltaX = e.clientX - resizeStartX;
+    const deltaY = e.clientY - resizeStartY;
+
+    // Calculate new size based on handle position
+    let newWidth = resizeStartWidth;
+    let newHeight = resizeStartHeight;
+
+    // Maintain aspect ratio
+    const aspectRatio = resizeStartWidth / resizeStartHeight;
+
+    switch (currentHandle) {
+        case 'se':
+            newWidth = Math.max(50, resizeStartWidth + deltaX);
+            newHeight = newWidth / aspectRatio;
+            break;
+        case 'sw':
+            newWidth = Math.max(50, resizeStartWidth - deltaX);
+            newHeight = newWidth / aspectRatio;
+            break;
+        case 'ne':
+            newWidth = Math.max(50, resizeStartWidth + deltaX);
+            newHeight = newWidth / aspectRatio;
+            break;
+        case 'nw':
+            newWidth = Math.max(50, resizeStartWidth - deltaX);
+            newHeight = newWidth / aspectRatio;
+            break;
+    }
+
+    activeResizableImage.style.width = newWidth + 'px';
+    activeResizableImage.style.height = newHeight + 'px';
+}
+
+function stopResize() {
+    currentHandle = null;
+    document.removeEventListener('mousemove', handleResize);
+    document.removeEventListener('mouseup', stopResize);
+}
+
+// Align the currently selected image
+function alignImage(alignment) {
+    if (!activeResizableImage) return false;
+
+    const wrapper = activeResizableImage.closest('.image-resize-wrapper');
+    const targetElement = wrapper || activeResizableImage;
+
+    // Remove previous alignment styles
+    targetElement.style.marginLeft = '';
+    targetElement.style.marginRight = '';
+    targetElement.style.display = '';
+    targetElement.style.float = '';
+
+    switch (alignment) {
+        case 'justifyLeft':
+            targetElement.style.display = 'block';
+            targetElement.style.marginLeft = '0';
+            targetElement.style.marginRight = 'auto';
+            break;
+        case 'justifyCenter':
+            targetElement.style.display = 'block';
+            targetElement.style.marginLeft = 'auto';
+            targetElement.style.marginRight = 'auto';
+            break;
+        case 'justifyRight':
+            targetElement.style.display = 'block';
+            targetElement.style.marginLeft = 'auto';
+            targetElement.style.marginRight = '0';
+            break;
+    }
+
+    // Also apply to the image itself for when wrapper is removed
+    if (wrapper) {
+        activeResizableImage.style.display = targetElement.style.display;
+        activeResizableImage.style.marginLeft = targetElement.style.marginLeft;
+        activeResizableImage.style.marginRight = targetElement.style.marginRight;
+    }
+
+    return true;
+}
+
+// ==================== HYPERLINK SYSTEM ====================
+// Link modal and insertion functions
+
+let savedSelection = null;
+
+// Save current selection before opening modal
+function saveSelection() {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0) {
+        savedSelection = sel.getRangeAt(0).cloneRange();
+    }
+}
+
+// Restore saved selection
+function restoreSelection() {
+    if (savedSelection) {
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(savedSelection);
+    }
+}
+
+// Search wiki pages (categories, subcategories, items, subitems)
+function searchWikiPages(query) {
+    if (!query || query.length < 2) return [];
+
+    const results = [];
+    const q = query.toLowerCase();
+
+    localWikiData.categories.forEach(cat => {
+        const catName = stripHtml(cat.name);
+
+        // Search category name
+        if (catName.toLowerCase().includes(q)) {
+            results.push({
+                type: 'Category',
+                name: catName,
+                linkText: catName,
+                url: `#${cat.id}`,
+                icon: '📁'
+            });
+        }
+
+        // Search subcategories
+        if (cat.subcategories) {
+            cat.subcategories.forEach(subcat => {
+                const subcatName = stripHtml(subcat.name);
+                if (subcatName.toLowerCase().includes(q)) {
+                    results.push({
+                        type: 'Subcategory',
+                        name: `${catName} › ${subcatName}`,
+                        linkText: subcatName,
+                        url: `#${subcat.id}`,
+                        icon: '📂'
+                    });
+                }
+
+                // Search items in subcategory
+                if (subcat.items) {
+                    subcat.items.forEach(item => {
+                        const itemName = stripHtml(item.name);
+                        if (itemName.toLowerCase().includes(q)) {
+                            results.push({
+                                type: 'Item',
+                                name: `${subcatName} › ${itemName}`,
+                                linkText: itemName,
+                                url: `item.html?id=${item.id}`,
+                                icon: '📄'
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        // Search items in category
+        if (cat.items) {
+            cat.items.forEach(item => {
+                const itemName = stripHtml(item.name);
+                if (itemName.toLowerCase().includes(q)) {
+                    results.push({
+                        type: 'Item',
+                        name: `${catName} › ${itemName}`,
+                        linkText: itemName,
+                        url: `item.html?id=${item.id}`,
+                        icon: '📄'
+                    });
+                }
+
+                // Search subitems
+                if (item.subItems) {
+                    item.subItems.forEach((subItem, subIdx) => {
+                        const subItemName = stripHtml(subItem.name);
+                        if (subItemName.toLowerCase().includes(q)) {
+                            results.push({
+                                type: 'SubItem',
+                                name: `${itemName} › ${subItemName}`,
+                                linkText: subItemName,
+                                url: `item.html?id=${item.id}#subitem-${subIdx}`,
+                                icon: '📎'
+                            });
+                        }
+                    });
+                }
+            });
+        }
+    });
+
+    return results.slice(0, 10); // Limit to 10 results
+}
+
+// Show link modal dialog
+function showLinkModal(targetElement) {
+    saveSelection();
+
+    // Remove existing modal if any
+    const existingModal = document.getElementById('linkModal');
+    if (existingModal) existingModal.remove();
+
+    // Get selected text for link text
+    const sel = window.getSelection();
+    const selectedText = sel.toString() || '';
+
+    const modal = document.createElement('div');
+    modal.id = 'linkModal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    `;
+
+    modal.innerHTML = `
+        <div class="link-modal-content" style="
+            background: var(--bg-card, #1e1e2e);
+            border: 1px solid var(--border-color, #333);
+            border-radius: 12px;
+            padding: 20px;
+            width: 400px;
+            max-width: 90vw;
+            color: var(--text-primary, #fff);
+        ">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; font-size: 1.2rem;">Insert Link</h3>
+                <button id="closeLinkModal" style="background: none; border: none; color: #888; font-size: 20px; cursor: pointer;">×</button>
+            </div>
+            
+            <div class="link-tabs" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button id="urlTab" class="link-tab active" style="
+                    flex: 1;
+                    padding: 8px;
+                    background: var(--accent-primary, #00d4aa);
+                    color: var(--bg-dark, #000);
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-weight: 500;
+                ">URL Link</button>
+                <button id="wikiTab" class="link-tab" style="
+                    flex: 1;
+                    padding: 8px;
+                    background: #333;
+                    color: #fff;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-weight: 500;
+                ">Wiki Page</button>
+            </div>
+            
+            <div id="urlPanel" class="link-panel">
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 0.9rem; color: #888;">Link Text</label>
+                    <input type="text" id="linkText" value="${selectedText}" placeholder="Enter link text" style="
+                        width: 100%;
+                        padding: 10px;
+                        background: var(--bg-secondary, #252535);
+                        border: 1px solid var(--border-color, #333);
+                        border-radius: 6px;
+                        color: #fff;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                    ">
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 0.9rem; color: #888;">URL</label>
+                    <input type="text" id="linkUrl" placeholder="https://example.com" style="
+                        width: 100%;
+                        padding: 10px;
+                        background: var(--bg-secondary, #252535);
+                        border: 1px solid var(--border-color, #333);
+                        border-radius: 6px;
+                        color: #fff;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                    ">
+                </div>
+            </div>
+            
+            <div id="wikiPanel" class="link-panel" style="display: none;">
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; font-size: 0.9rem; color: #888;">Search Wiki Pages</label>
+                    <input type="text" id="wikiSearch" placeholder="Search categories, items..." style="
+                        width: 100%;
+                        padding: 10px;
+                        background: var(--bg-secondary, #252535);
+                        border: 1px solid var(--border-color, #333);
+                        border-radius: 6px;
+                        color: #fff;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                    ">
+                </div>
+                <div id="wikiResults" style="
+                    max-height: 200px;
+                    overflow-y: auto;
+                    border: 1px solid var(--border-color, #333);
+                    border-radius: 6px;
+                    background: var(--bg-secondary, #252535);
+                "></div>
+                <input type="hidden" id="selectedWikiUrl">
+                <input type="hidden" id="selectedWikiName">
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button id="cancelLink" style="
+                    flex: 1;
+                    padding: 10px;
+                    background: #333;
+                    color: #fff;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                ">Cancel</button>
+                <button id="insertLink" style="
+                    flex: 1;
+                    padding: 10px;
+                    background: var(--accent-primary, #00d4aa);
+                    color: var(--bg-dark, #000);
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-weight: 500;
+                ">Insert Link</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Tab switching
+    const urlTab = document.getElementById('urlTab');
+    const wikiTab = document.getElementById('wikiTab');
+    const urlPanel = document.getElementById('urlPanel');
+    const wikiPanel = document.getElementById('wikiPanel');
+
+    urlTab.addEventListener('click', () => {
+        urlTab.style.background = 'var(--accent-primary, #00d4aa)';
+        urlTab.style.color = 'var(--bg-dark, #000)';
+        wikiTab.style.background = '#333';
+        wikiTab.style.color = '#fff';
+        urlPanel.style.display = 'block';
+        wikiPanel.style.display = 'none';
+    });
+
+    wikiTab.addEventListener('click', () => {
+        wikiTab.style.background = 'var(--accent-primary, #00d4aa)';
+        wikiTab.style.color = 'var(--bg-dark, #000)';
+        urlTab.style.background = '#333';
+        urlTab.style.color = '#fff';
+        wikiPanel.style.display = 'block';
+        urlPanel.style.display = 'none';
+        document.getElementById('wikiSearch').focus();
+    });
+
+    // Wiki search
+    const wikiSearch = document.getElementById('wikiSearch');
+    const wikiResults = document.getElementById('wikiResults');
+
+    wikiSearch.addEventListener('input', () => {
+        const results = searchWikiPages(wikiSearch.value);
+        wikiResults.innerHTML = results.length ? results.map(r => `
+            <div class="wiki-result" data-url="${encodeURIComponent(r.url)}" data-linktext="${encodeURIComponent(r.linkText)}" style="
+                padding: 10px;
+                cursor: pointer;
+                border-bottom: 1px solid #333;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            " onmouseover="this.style.background='#333'" onmouseout="this.style.background=''">
+                <span style="font-size: 16px;">${r.icon}</span>
+                <div>
+                    <div style="font-size: 0.9rem;">${escapeHtml(r.name)}</div>
+                    <div style="font-size: 0.75rem; color: #666;">${r.type}</div>
+                </div>
+            </div>
+        `).join('') : '<div style="padding: 15px; text-align: center; color: #666;">No results found</div>';
+
+        // Add click handlers to results
+        wikiResults.querySelectorAll('.wiki-result').forEach(el => {
+            el.addEventListener('click', () => {
+                document.getElementById('selectedWikiUrl').value = decodeURIComponent(el.dataset.url);
+                document.getElementById('selectedWikiName').value = decodeURIComponent(el.dataset.linktext);
+                wikiResults.querySelectorAll('.wiki-result').forEach(r => r.style.background = '');
+                el.style.background = 'var(--accent-primary, #00d4aa)';
+                el.style.color = '#000';
+            });
+        });
+    });
+
+    // Close handlers
+    const closeModal = () => modal.remove();
+    document.getElementById('closeLinkModal').addEventListener('click', closeModal);
+    document.getElementById('cancelLink').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+    // Insert link handler
+    document.getElementById('insertLink').addEventListener('click', () => {
+        let url, text;
+
+        if (urlPanel.style.display !== 'none') {
+            // URL tab
+            url = document.getElementById('linkUrl').value;
+            text = document.getElementById('linkText').value || url;
+        } else {
+            // Wiki tab
+            url = document.getElementById('selectedWikiUrl').value;
+            text = document.getElementById('selectedWikiName').value || url;
+        }
+
+        if (!url) {
+            alert('Please enter a URL or select a wiki page');
+            return;
+        }
+
+        closeModal();
+        restoreSelection();
+        insertHyperlinkAtSelection(url, text, targetElement);
+    });
+
+    // Focus first input
+    document.getElementById('linkText').focus();
+}
+
+// Insert hyperlink at current selection
+function insertHyperlinkAtSelection(url, text, targetElement) {
+    if (targetElement) targetElement.focus();
+    restoreSelection();
+
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.textContent = text;
+        link.style.color = 'var(--accent-primary, #00d4aa)';
+        link.style.textDecoration = 'underline';
+
+        // Open external links in new tab
+        if (url.startsWith('http')) {
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        }
+
+        range.insertNode(link);
+
+        // Move cursor after link
+        range.setStartAfter(link);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+}
+
 // ==================== INLINE RICH TEXT TOOLBAR ====================
 // On-page toolbar that can be inserted before any contenteditable field
 
@@ -291,10 +1140,13 @@ function createInlineToolbar(targetElement, toolbarId) {
         </select>
         <select class="font-size-select" title="Font Size">
             <option value="">Size</option>
-            <option value="1">Small</option>
-            <option value="3">Normal</option>
-            <option value="5">Large</option>
-            <option value="7">X-Large</option>
+            <option value="10">10</option>
+            <option value="12">12</option>
+            <option value="14">14</option>
+            <option value="16">16</option>
+            <option value="18">18</option>
+            <option value="20">20</option>
+            <option value="24">24</option>
         </select>
         <span class="toolbar-divider"></span>
         <select class="color-select" title="Text Color">
@@ -312,8 +1164,9 @@ function createInlineToolbar(targetElement, toolbarId) {
         </select>
         <input type="color" class="custom-color-picker" style="width:0;height:0;opacity:0;position:absolute;">
         <span class="toolbar-divider"></span>
-        <button type="button" class="insert-image-btn" title="Insert Image">📷</button>
+        <button type="button" class="insert-image-btn" title="Insert Image">IMG</button>
         <input type="file" class="image-input" accept="image/*" style="display:none;">
+        <button type="button" class="insert-link-btn" title="Insert Link">LINK</button>
         <span class="toolbar-divider"></span>
         <button type="button" data-cmd="removeFormat" title="Clear Formatting">✕</button>
     `;
@@ -322,7 +1175,14 @@ function createInlineToolbar(targetElement, toolbarId) {
     toolbarContainer.querySelectorAll('button[data-cmd]').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
-            document.execCommand(btn.dataset.cmd, false, null);
+            const cmd = btn.dataset.cmd;
+
+            // Check if this is an alignment command and we have a selected image
+            if ((cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight') && activeResizableImage) {
+                alignImage(cmd);
+            } else {
+                document.execCommand(cmd, false, null);
+            }
             targetElement.focus();
         });
     });
@@ -337,11 +1197,18 @@ function createInlineToolbar(targetElement, toolbarId) {
         }
     });
 
-    // Font size handler
+    // Font size handler - use inline style for exact pixel sizes
     const fontSizeSelect = toolbarContainer.querySelector('.font-size-select');
     fontSizeSelect.addEventListener('change', (e) => {
         if (e.target.value) {
-            document.execCommand('fontSize', false, e.target.value);
+            const fontSize = e.target.value + 'px';
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                const range = selection.getRangeAt(0);
+                const span = document.createElement('span');
+                span.style.fontSize = fontSize;
+                range.surroundContents(span);
+            }
             targetElement.focus();
             e.target.value = '';
         }
@@ -439,6 +1306,15 @@ function createInlineToolbar(targetElement, toolbarId) {
         imageInput.value = '';
     });
 
+    // Link insertion handler
+    const insertLinkBtn = toolbarContainer.querySelector('.insert-link-btn');
+    if (insertLinkBtn) {
+        insertLinkBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            showLinkModal(targetElement);
+        });
+    }
+
     return toolbarContainer;
 }
 
@@ -491,10 +1367,13 @@ function createFloatingToolbar() {
         </select>
         <select id="floatingFontSizeSelect" title="Font Size" style="padding:4px;background:#333;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">
             <option value="">Size</option>
-            <option value="1">Small</option>
-            <option value="3">Normal</option>
-            <option value="5">Large</option>
-            <option value="7">X-Large</option>
+            <option value="10">10</option>
+            <option value="12">12</option>
+            <option value="14">14</option>
+            <option value="16">16</option>
+            <option value="18">18</option>
+            <option value="20">20</option>
+            <option value="24">24</option>
         </select>
         <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
         <select id="floatingColorSelect" title="Text Color" style="padding:4px;background:#333;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">
@@ -512,8 +1391,9 @@ function createFloatingToolbar() {
         </select>
         <input type="color" id="floatingCustomColor" style="width:0;height:0;opacity:0;position:absolute;">
         <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
-        <button type="button" id="floatingInsertImageBtn" title="Insert Image">📷</button>
+        <button type="button" id="floatingInsertImageBtn" title="Insert Image">IMG</button>
         <input type="file" id="floatingImageInput" accept="image/*" style="display:none;">
+        <button type="button" id="floatingInsertLinkBtn" title="Insert Link">LINK</button>
         <span class="toolbar-divider" style="width:1px;height:20px;background:#444;margin:0 6px;"></span>
         <button type="button" data-cmd="removeFormat" title="Clear Formatting">⌫</button>
         <button type="button" id="closeToolbarBtn" title="Close Toolbar">✕</button>
@@ -531,7 +1411,13 @@ function createFloatingToolbar() {
         btn.addEventListener('mousedown', (e) => {
             e.preventDefault(); // Prevent losing focus
             const cmd = btn.dataset.cmd;
-            document.execCommand(cmd, false, null);
+
+            // Check if this is an alignment command and we have a selected image
+            if ((cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight') && activeResizableImage) {
+                alignImage(cmd);
+            } else {
+                document.execCommand(cmd, false, null);
+            }
             if (activeEditableField) activeEditableField.focus();
         });
     });
@@ -566,11 +1452,18 @@ function createFloatingToolbar() {
         }
     });
 
-    // Font size select handler
+    // Font size select handler - use inline style for exact pixel sizes
     const fontSizeSelect = toolbar.querySelector('#floatingFontSizeSelect');
     fontSizeSelect.addEventListener('change', (e) => {
         if (e.target.value) {
-            document.execCommand('fontSize', false, e.target.value);
+            const fontSize = e.target.value + 'px';
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                const range = selection.getRangeAt(0);
+                const span = document.createElement('span');
+                span.style.fontSize = fontSize;
+                range.surroundContents(span);
+            }
             if (activeEditableField) activeEditableField.focus();
             e.target.value = '';
         }
@@ -684,6 +1577,15 @@ function createFloatingToolbar() {
         // Reset input so same file can be selected again
         imageInput.value = '';
     });
+
+    // Link insert button handler
+    const insertLinkBtn = toolbar.querySelector('#floatingInsertLinkBtn');
+    if (insertLinkBtn) {
+        insertLinkBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            showLinkModal(activeEditableField);
+        });
+    }
 
     document.body.appendChild(toolbar);
     floatingToolbar = toolbar;
@@ -1105,6 +2007,12 @@ function initWiki() {
     // Apply accent color if set
     applyAccentColor();
 
+    // Apply default font size if set
+    applyDefaultFontSize();
+
+    // Initialize image resizer for edit mode
+    initImageResizer();
+
     try {
         initAuth(); // Initialize Auth
     } catch (e) {
@@ -1397,14 +2305,78 @@ function renderHome(container) {
         }
     }
 
+    // Handle Welcome and News Boxes
+    const homepageBoxes = document.getElementById('homepageBoxes');
+    const welcomeBoxContent = document.getElementById('welcomeBoxContent');
+    const newsBoxContent = document.getElementById('newsBoxContent');
+    const welcomeBoxTitle = document.getElementById('welcomeBoxTitle');
+    const newsBoxTitle = document.getElementById('newsBoxTitle');
+
+    if (homepageBoxes && welcomeBoxContent && newsBoxContent) {
+        if (filterCategoryId) {
+            // Hide boxes on category pages
+            homepageBoxes.style.display = 'none';
+        } else {
+            // Show boxes on homepage
+            homepageBoxes.style.display = '';
+
+            // Load saved content
+            if (localWikiData.welcomeBox) welcomeBoxContent.innerHTML = localWikiData.welcomeBox;
+            if (localWikiData.newsBox) newsBoxContent.innerHTML = localWikiData.newsBox;
+            if (localWikiData.welcomeTitle && welcomeBoxTitle) welcomeBoxTitle.innerHTML = localWikiData.welcomeTitle;
+            if (localWikiData.newsTitle && newsBoxTitle) newsBoxTitle.innerHTML = localWikiData.newsTitle;
+
+            if (currentUser && currentUser.role === 'admin' && isEditMode) {
+                // Make boxes editable
+                welcomeBoxContent.dataset.field = 'welcomeBox';
+                welcomeBoxContent.dataset.original = welcomeBoxContent.innerHTML;
+                makeRichEditable(welcomeBoxContent);
+
+                newsBoxContent.dataset.field = 'newsBox';
+                newsBoxContent.dataset.original = newsBoxContent.innerHTML;
+                makeRichEditable(newsBoxContent);
+
+                // Make titles editable (consistent with Hero Title)
+                if (welcomeBoxTitle) {
+                    welcomeBoxTitle.dataset.field = 'welcomeTitle'; // Use distinct field name for clarity in save logic if needed, but we used IDs primarily
+                    welcomeBoxTitle.dataset.original = welcomeBoxTitle.innerHTML;
+                    makeRichEditable(welcomeBoxTitle);
+                }
+                if (newsBoxTitle) {
+                    newsBoxTitle.dataset.field = 'newsTitle';
+                    newsBoxTitle.dataset.original = newsBoxTitle.innerHTML;
+                    makeRichEditable(newsBoxTitle);
+                }
+
+            } else {
+                welcomeBoxContent.contentEditable = 'false';
+                newsBoxContent.contentEditable = 'false';
+                if (welcomeBoxTitle) welcomeBoxTitle.contentEditable = 'false';
+                if (newsBoxTitle) newsBoxTitle.contentEditable = 'false';
+            }
+        }
+    }
+
     // If filtering, add a Back button
     if (filterCategoryId) {
         const backLink = document.createElement('a');
-        backLink.href = 'index.html';
         backLink.className = 'btn-back';
         backLink.style.display = 'inline-block';
         backLink.style.marginBottom = '20px';
-        backLink.textContent = '← Back to All Categories';
+
+        if (filterSubcategoryId) {
+            // Viewing Subcategory -> Back to Category
+            backLink.href = `index.html?category=${filterCategoryId}`;
+            // Try to find category name for better label
+            const cat = localWikiData.categories.find(c => c.id === filterCategoryId);
+            const catName = cat ? cat.name : 'Category';
+            backLink.textContent = `← Back to ${catName}`;
+        } else {
+            // Viewing Category -> Back to Home
+            backLink.href = 'index.html';
+            backLink.textContent = '← Back to All Categories';
+        }
+
         container.appendChild(backLink);
     } else {
         // Only show Admin Bar in full view (optional, but cleaner)
@@ -2210,6 +3182,48 @@ function saveAllChanges() {
         if (newSubtitle !== heroSubtitle.dataset.original) {
             localWikiData.heroSubtitle = newSubtitle;
             heroSubtitle.dataset.original = newSubtitle;
+            changesMade++;
+        }
+    }
+
+    // Save Welcome and News Box content
+    const welcomeBoxContent = document.getElementById('welcomeBoxContent');
+    const newsBoxContent = document.getElementById('newsBoxContent');
+    const welcomeBoxTitle = document.getElementById('welcomeBoxTitle');
+    const newsBoxTitle = document.getElementById('newsBoxTitle');
+
+    if (welcomeBoxContent && welcomeBoxContent.dataset.original !== undefined) {
+        const newWelcome = welcomeBoxContent.innerHTML;
+        if (newWelcome !== welcomeBoxContent.dataset.original) {
+            localWikiData.welcomeBox = newWelcome;
+            welcomeBoxContent.dataset.original = newWelcome;
+            changesMade++;
+        }
+    }
+
+    if (newsBoxContent && newsBoxContent.dataset.original !== undefined) {
+        const newNews = newsBoxContent.innerHTML;
+        if (newNews !== newsBoxContent.dataset.original) {
+            localWikiData.newsBox = newNews;
+            newsBoxContent.dataset.original = newNews;
+            changesMade++;
+        }
+    }
+
+    if (welcomeBoxTitle && welcomeBoxTitle.dataset.original !== undefined) {
+        const newWelcomeTitle = welcomeBoxTitle.innerHTML;
+        if (newWelcomeTitle !== welcomeBoxTitle.dataset.original) {
+            localWikiData.welcomeTitle = newWelcomeTitle;
+            welcomeBoxTitle.dataset.original = newWelcomeTitle;
+            changesMade++;
+        }
+    }
+
+    if (newsBoxTitle && newsBoxTitle.dataset.original !== undefined) {
+        const newNewsTitle = newsBoxTitle.innerHTML;
+        if (newNewsTitle !== newsBoxTitle.dataset.original) {
+            localWikiData.newsTitle = newNewsTitle;
+            newsBoxTitle.dataset.original = newNewsTitle;
             changesMade++;
         }
     }
@@ -3143,10 +4157,13 @@ function renderItemDetail(container) {
                             </select>
                             <select id="fontSizeSelect" title="Font Size">
                                 <option value="">Size</option>
-                                <option value="1">Small</option>
-                                <option value="3">Normal</option>
-                                <option value="5">Large</option>
-                                <option value="7">X-Large</option>
+                                <option value="10">10</option>
+                                <option value="12">12</option>
+                                <option value="14">14</option>
+                                <option value="16">16</option>
+                                <option value="18">18</option>
+                                <option value="20">20</option>
+                                <option value="24">24</option>
                             </select>
                             <span class="toolbar-divider"></span>
                             <select id="textColorSelect" title="Text Color">
@@ -3164,8 +4181,9 @@ function renderItemDetail(container) {
                             </select>
                             <input type="color" id="customColorPicker" style="width: 0; height: 0; opacity: 0; position: absolute;" title="Pick custom color">
                             <span class="toolbar-divider"></span>
-                            <button type="button" id="insertImageBtn" title="Insert Image">📷</button>
+                            <button type="button" id="insertImageBtn" title="Insert Image">IMG</button>
                             <input type="file" id="descImageInput" accept="image/*" style="display: none;">
+                            <button type="button" id="insertLinkBtn" title="Insert Link">LINK</button>
                             <span class="toolbar-divider"></span>
                             <button type="button" data-cmd="removeFormat" title="Clear Formatting">✕</button>
                         </div>
@@ -3221,7 +4239,13 @@ function renderItemDetail(container) {
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
                     const cmd = btn.dataset.cmd;
-                    document.execCommand(cmd, false, null);
+
+                    // Check if this is an alignment command and we have a selected image
+                    if ((cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight') && activeResizableImage) {
+                        alignImage(cmd);
+                    } else {
+                        document.execCommand(cmd, false, null);
+                    }
                     document.getElementById('item-desc-edit').focus();
                 });
             });
@@ -3260,12 +4284,19 @@ function renderItemDetail(container) {
                 });
             }
 
-            // Font size select handler
+            // Font size select handler - use inline style for exact pixel sizes
             const fontSizeSelect = document.getElementById('fontSizeSelect');
             if (fontSizeSelect) {
                 fontSizeSelect.addEventListener('change', (e) => {
                     if (e.target.value) {
-                        document.execCommand('fontSize', false, e.target.value);
+                        const fontSize = e.target.value + 'px';
+                        const selection = window.getSelection();
+                        if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                            const range = selection.getRangeAt(0);
+                            const span = document.createElement('span');
+                            span.style.fontSize = fontSize;
+                            range.surroundContents(span);
+                        }
                         document.getElementById('item-desc-edit').focus();
                         e.target.value = '';
                     }
@@ -3343,6 +4374,15 @@ function renderItemDetail(container) {
                 // Reset input so same file can be selected again
                 descImageInput.value = '';
             });
+
+            // Insert Link handler
+            const insertLinkBtn = document.getElementById('insertLinkBtn');
+            if (insertLinkBtn) {
+                insertLinkBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showLinkModal(descEdit);
+                });
+            }
 
             // Function to setup delete handler for inline images
             function setupImageDeleteHandler(img) {

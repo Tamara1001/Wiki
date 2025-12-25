@@ -158,6 +158,29 @@
                             </div>
                         </div>
 
+                        <!-- Default Font Size Section -->
+                        <div class="form-group"
+                            style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                            <label>Default Description Font Size</label>
+                            <p style="font-size: 0.85em; color: var(--text-secondary); margin-bottom: 10px;">
+                                Set the default font size for item descriptions across the wiki.
+                            </p>
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <select id="defaultFontSize"
+                                    style="padding: 10px 15px; background: var(--bg-dark); color: white; border: 1px solid var(--border-color); border-radius: 6px; font-size: 1em;">
+                                    <option value="10">10px</option>
+                                    <option value="12">12px</option>
+                                    <option value="14">14px</option>
+                                    <option value="16" selected>16px (Default)</option>
+                                    <option value="18">18px</option>
+                                    <option value="20">20px</option>
+                                    <option value="24">24px</option>
+                                </select>
+                                <span id="fontSizePreview"
+                                    style="font-size: 16px; color: var(--text-secondary);">Preview Text</span>
+                            </div>
+                        </div>
+
                         <button id="saveSettingsBtn" class="btn-primary" style="margin-top: 15px;">Save
                             Settings</button>
                     </section>
@@ -266,6 +289,14 @@
 
                 // Load accent color preview
                 updateAccentColorPreview(localWikiData.accentColor || '#00d4aa');
+
+                // Load default font size
+                const fontSizeSelect = document.getElementById('defaultFontSize');
+                const savedFontSize = localWikiData.defaultFontSize || '16';
+                if (fontSizeSelect) {
+                    fontSizeSelect.value = savedFontSize;
+                    updateFontSizePreview(savedFontSize);
+                }
             }
 
             // Initialize toolbar
@@ -276,6 +307,9 @@
 
             // Initialize accent color handlers
             initAccentColorHandlers();
+
+            // Initialize font size handlers
+            initFontSizeHandlers();
         }
 
         // Track selected accent color
@@ -316,6 +350,23 @@
             picker.addEventListener('input', (e) => {
                 updateAccentColorPreview(e.target.value);
             });
+        }
+
+        function updateFontSizePreview(size) {
+            const preview = document.getElementById('fontSizePreview');
+            if (preview) {
+                preview.style.fontSize = size + 'px';
+                preview.textContent = 'Preview Text (' + size + 'px)';
+            }
+        }
+
+        function initFontSizeHandlers() {
+            const fontSizeSelect = document.getElementById('defaultFontSize');
+            if (fontSizeSelect) {
+                fontSizeSelect.addEventListener('change', (e) => {
+                    updateFontSizePreview(e.target.value);
+                });
+            }
         }
 
         function updateBgImagePreview() {
@@ -422,6 +473,7 @@
         function saveWikiSettings() {
             const newTitle = document.getElementById('wiki-hero-title').innerHTML;
             const newSubtitle = document.getElementById('wiki-hero-subtitle').innerHTML;
+            const defaultFontSize = document.getElementById('defaultFontSize').value;
 
             if (typeof localWikiData !== 'undefined') {
                 localWikiData.heroTitle = newTitle;
@@ -429,10 +481,16 @@
                 // backgroundImage is already set by upload handler
                 // Save accent color
                 localWikiData.accentColor = selectedAccentColor;
+                // Save default font size
+                localWikiData.defaultFontSize = defaultFontSize;
                 persistData(); // Defined in script.js
                 // Apply the accent color immediately
                 if (typeof applyAccentColor === 'function') {
                     applyAccentColor();
+                }
+                // Apply the font size immediately
+                if (typeof applyDefaultFontSize === 'function') {
+                    applyDefaultFontSize();
                 }
                 alert('Settings saved successfully!');
             } else {

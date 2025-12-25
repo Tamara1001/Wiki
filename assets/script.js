@@ -2369,7 +2369,7 @@ function renderHome(container) {
             backLink.href = `index.html?category=${filterCategoryId}`;
             // Try to find category name for better label
             const cat = localWikiData.categories.find(c => c.id === filterCategoryId);
-            const catName = cat ? cat.name : 'Category';
+            const catName = cat ? stripHtml(cat.name) : 'Category';
             backLink.textContent = `← Back to ${catName}`;
         } else {
             // Viewing Category -> Back to Home
@@ -3391,12 +3391,17 @@ function downloadChanges() {
     // Construct the data.js file content
     // Include users array (unchanged) and wikiData (current state from localWikiData)
 
-    const usersStr = JSON.stringify(users, null, 4);
-    const wikiDataObj = {
-        heroTitle: localWikiData.heroTitle || 'Welcome to the Wiki',
-        heroSubtitle: localWikiData.heroSubtitle || 'The ultimate resource for adventurers.',
-        categories: localWikiData.categories
-    };
+    let currentUsers = users;
+    const storedUsers = localStorage.getItem('localUsers');
+    if (storedUsers) {
+        try {
+            currentUsers = JSON.parse(storedUsers);
+        } catch (e) {
+            console.error('Failed to parse localUsers', e);
+        }
+    }
+    const usersStr = JSON.stringify(currentUsers, null, 4);
+    const wikiDataObj = localWikiData;
     const wikiDataStr = JSON.stringify(wikiDataObj, null, 4);
 
     const fileContent = `const users = ${usersStr};
@@ -3427,12 +3432,17 @@ async function uploadToGitHub() {
     }
 
     // Build file content (same as downloadChanges)
-    const usersStr = JSON.stringify(users, null, 4);
-    const wikiDataObj = {
-        heroTitle: localWikiData.heroTitle || 'Welcome to the Wiki',
-        heroSubtitle: localWikiData.heroSubtitle || 'The ultimate resource for adventurers.',
-        categories: localWikiData.categories
-    };
+    let currentUsers = users;
+    const storedUsers = localStorage.getItem('localUsers');
+    if (storedUsers) {
+        try {
+            currentUsers = JSON.parse(storedUsers);
+        } catch (e) {
+            console.error('Failed to parse localUsers', e);
+        }
+    }
+    const usersStr = JSON.stringify(currentUsers, null, 4);
+    const wikiDataObj = localWikiData;
     const wikiDataStr = JSON.stringify(wikiDataObj, null, 4);
     const fileContent = `const users = ${usersStr};\n\nconst wikiData = ${wikiDataStr};\n`;
 
@@ -4544,8 +4554,13 @@ function renderItemDetail(container) {
 
         const backBtn = document.getElementById('detail-back-btn');
         backBtn.onclick = () => {
-            if (window.history.length > 1) {
-                window.history.back();
+            if (foundSubcategory) {
+                // Determine if this is a subitem view (hash) or just item
+                // Wait, subitems are displayed ON the item page. 
+                // Checks for item's parent.
+                window.location.href = `index.html?category=${foundCategory.id}&subcategory=${foundSubcategory.id}`;
+            } else if (foundCategory) {
+                window.location.href = `index.html?category=${foundCategory.id}`;
             } else {
                 window.location.href = 'index.html';
             }

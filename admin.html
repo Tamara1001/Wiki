@@ -264,8 +264,15 @@
 
             renderUserList();
 
-            // Initialize Wiki Settings
-            initWikiSettings();
+            // Initialize Wiki Settings once data is ready
+            // script.js loads data asynchronously/on-load, so we must wait
+            const waitForData = setInterval(() => {
+                if (localWikiData) {
+                    clearInterval(waitForData);
+                    console.log('Admin: Wiki Data loaded, initializing settings...');
+                    initWikiSettings();
+                }
+            }, 50);
 
             document.getElementById('addUserBtn').onclick = addNewUser;
             document.getElementById('saveSettingsBtn').onclick = saveWikiSettings;

@@ -25,34 +25,46 @@ const loginError = document.getElementById('loginError');
 let currentUser = null; // null = Guest
 let localWikiData = null; // Stores modified data
 let isEditMode = false; // Toggle for admin edit controls
-
-// Initialize wiki data from storage if available
-// Always use localStorage if it has data (to preserve local changes)
+// Syncing Logic: Use localStorage ONLY if it's newer than server data
 function loadWikiData() {
     const stored = localStorage.getItem('modifiedWikiData');
-    const lastUpload = localStorage.getItem('lastUploadTime');
 
-    // Check if there was a recent upload (within 15 minutes - covers CDN cache delay)
-    const recentUpload = lastUpload && (Date.now() - parseInt(lastUpload)) < 15 * 60 * 1000;
-
+    // Parse stored data
+    let localData = null;
     if (stored) {
-        // Use localStorage data if it exists (preserves all local changes)
         try {
-            localWikiData = JSON.parse(stored);
-            console.log('Using localStorage data (local changes preserved)');
+            localData = JSON.parse(stored);
         } catch (e) {
             console.error('Failed to parse local wiki data', e);
-            localWikiData = JSON.parse(JSON.stringify(wikiData));
         }
-    } else {
-        // No localStorage - use fresh data from data.js (GitHub)
-        localWikiData = JSON.parse(JSON.stringify(wikiData));
-        console.log('Using fresh data from data.js');
     }
 
-    // Clear old upload timestamp if CDN has had time to refresh
-    if (lastUpload && !recentUpload) {
-        localStorage.removeItem('lastUploadTime');
+    // Get timestamps (handle legacy data without timestamps)
+    // wikiData is global from data.js
+    const serverTime = (typeof wikiData !== 'undefined' && wikiData.lastUpdated) ? wikiData.lastUpdated : 0;
+    const localTime = (localData && localData.lastUpdated) ? localData.lastUpdated : 0;
+
+    console.log(`Sync Check - Server: ${serverTime}, Local: ${localTime}`);
+
+    if (serverTime > localTime) {
+        console.log('Server data is newer. Updating local cache.');
+        localWikiData = JSON.parse(JSON.stringify(wikiData));
+        // Clear stale local storage to ensure we stay in sync
+        localStorage.removeItem('modifiedWikiData');
+        localStorage.removeItem('lastUploadTime'); // Clean up
+    } else if (localData) {
+        console.log('Using localStorage data (Local is current or newer)');
+        localWikiData = localData;
+    } else {
+        // No local data, and server is default
+        console.log('Using fresh data from data.js');
+        // Check if wikiData is defined to prevent crash
+        if (typeof wikiData !== 'undefined') {
+            localWikiData = JSON.parse(JSON.stringify(wikiData));
+        } else {
+            console.error('CRITICAL: wikiData is not defined!');
+            localWikiData = { categories: [] }; // Fallback
+        }
     }
 }
 
@@ -72,6 +84,7 @@ function resetWikiData() {
 }
 
 function persistData() {
+    localWikiData.lastUpdated = Date.now();
     localStorage.setItem('modifiedWikiData', JSON.stringify(localWikiData));
 }
 
@@ -3401,6 +3414,8 @@ function downloadChanges() {
         }
     }
     const usersStr = JSON.stringify(currentUsers, null, 4);
+    // Ensure accurate timestamp on export
+    localWikiData.lastUpdated = Date.now();
     const wikiDataObj = localWikiData;
     const wikiDataStr = JSON.stringify(wikiDataObj, null, 4);
 
@@ -3442,6 +3457,8 @@ async function uploadToGitHub() {
         }
     }
     const usersStr = JSON.stringify(currentUsers, null, 4);
+    // Ensure accurate timestamp on export
+    localWikiData.lastUpdated = Date.now();
     const wikiDataObj = localWikiData;
     const wikiDataStr = JSON.stringify(wikiDataObj, null, 4);
     const fileContent = `const users = ${usersStr};\n\nconst wikiData = ${wikiDataStr};\n`;

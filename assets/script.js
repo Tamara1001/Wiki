@@ -1729,9 +1729,13 @@ function initAuth() {
         currentUser = JSON.parse(storedUser);
 
         // Ensure default character is set on page load
+        // Ensure default character is set on page load
         const userChars = getUserCharacters(currentUser.username);
         if (userChars && userChars.length > 0 && !sessionStorage.getItem('selectedCharacter')) {
-            sessionStorage.setItem('selectedCharacter', userChars[0]);
+            // Handle both string and object characters
+            const firstChar = userChars[0];
+            const charName = (typeof firstChar === 'string') ? firstChar : firstChar.name;
+            sessionStorage.setItem('selectedCharacter', charName);
         }
 
         // Restore Edit Mode state
@@ -1911,21 +1915,52 @@ function updateAuthUI() {
             charSelect.id = 'charProfileSelect';
             charSelect.style.cssText = 'padding: 5px 10px; margin-right: 10px; font-size: 0.9em; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;';
 
-            // Get current selected character from session
-            const currentChar = sessionStorage.getItem('selectedCharacter') || userChars[0];
+            // Get current selected character from session (name string)
+            let currentCharName = sessionStorage.getItem('selectedCharacter');
+
+            // Fallback ensure valid selection
+            const firstChar = userChars[0];
+            const firstCharName = (typeof firstChar === 'string') ? firstChar : firstChar.name;
+            if (!currentCharName) currentCharName = firstCharName;
 
             userChars.forEach(char => {
+                const charName = (typeof char === 'string') ? char : char.name;
                 const option = document.createElement('option');
-                option.value = char;
-                option.textContent = char;
-                if (char === currentChar) option.selected = true;
+                option.value = charName;
+                option.textContent = charName;
+                if (charName === currentCharName) option.selected = true;
                 charSelect.appendChild(option);
             });
 
+            // Character Sheet Link Button
+            const sheetLinkBtn = document.createElement('a');
+            sheetLinkBtn.id = 'charSheetLink';
+            sheetLinkBtn.target = '_blank';
+            sheetLinkBtn.style.cssText = 'display: none; align-items: center; padding: 5px 10px; margin-right: 10px; background: #9c27b0; color: white; text-decoration: none; border-radius: 4px; font-size: 0.9em;';
+            sheetLinkBtn.innerHTML = '<span>📄 Sheet</span>';
+
+            // Function to update sheet link based on selection
+            const updateSheetLink = (selectedName) => {
+                const charObj = userChars.find(c => (typeof c === 'string' ? c : c.name) === selectedName);
+                if (charObj && typeof charObj === 'object' && charObj.sheetUrl) {
+                    sheetLinkBtn.href = charObj.sheetUrl;
+                    sheetLinkBtn.style.display = 'inline-flex';
+                } else {
+                    sheetLinkBtn.style.display = 'none';
+                    sheetLinkBtn.href = '#';
+                }
+            };
+
+            // Initial update
+            updateSheetLink(currentCharName);
+
             charSelect.addEventListener('change', (e) => {
-                sessionStorage.setItem('selectedCharacter', e.target.value);
+                const newCharName = e.target.value;
+                sessionStorage.setItem('selectedCharacter', newCharName);
+                updateSheetLink(newCharName);
+
                 // Update display
-                userDisplay.textContent = currentUser.username + ' - ' + e.target.value + (currentUser.role === 'admin' ? ' (Admin)' : '');
+                userDisplay.textContent = currentUser.username + ' - ' + newCharName + (currentUser.role === 'admin' ? ' (Admin)' : '');
 
                 // Refresh content to update permissions
                 if (window.location.pathname.includes('item.html')) {
@@ -1938,9 +1973,10 @@ function updateAuthUI() {
             });
 
             controls.insertBefore(charSelect, authBtn);
+            controls.insertBefore(sheetLinkBtn, authBtn);
 
             // Update username display to include character
-            userDisplay.textContent = currentUser.username + ' - ' + currentChar + (currentUser.role === 'admin' ? ' (Admin)' : '');
+            userDisplay.textContent = currentUser.username + ' - ' + currentCharName + (currentUser.role === 'admin' ? ' (Admin)' : '');
         }
     } else {
         authBtn.textContent = 'Login';
@@ -2451,8 +2487,9 @@ function renderHome(container) {
 
                 catGroup.addEventListener('dragover', (e) => {
                     // Accept category drops
-                    if (e.dataTransfer.types.includes('application/category')) {
+                    if (e.dataTransfer.types.includes('application/category') || e.dataTransfer.types.includes('application/wiki-item')) {
                         e.preventDefault();
+                        e.stopPropagation();
                         e.dataTransfer.dropEffect = 'move';
                         catGroup.classList.add('drag-over-cat');
                     }
@@ -2463,20 +2500,47 @@ function renderHome(container) {
                 });
 
                 catGroup.addEventListener('drop', (e) => {
-                    if (!e.dataTransfer.types.includes('application/category')) return;
-                    e.preventDefault();
-                    catGroup.classList.remove('drag-over-cat');
+                    // Handle CATEGORY Drop
+                    if (e.dataTransfer.types.includes('application/category')) {
+                        e.preventDefault();
+                        catGroup.classList.remove('drag-over-cat');
 
-                    const data = JSON.parse(e.dataTransfer.getData('application/category'));
-                    const fromIndex = data.catIndex;
-                    const toIndex = catIndex;
+                        const data = JSON.parse(e.dataTransfer.getData('application/category'));
+                        const fromIndex = data.catIndex;
+                        const toIndex = catIndex;
 
-                    if (fromIndex !== toIndex) {
-                        const [movedCat] = localWikiData.categories.splice(fromIndex, 1);
-                        localWikiData.categories.splice(toIndex, 0, movedCat);
-                        persistData();
-                        renderHome(document.getElementById('contentGrid'));
-                        renderNavigation();
+                        if (fromIndex !== toIndex) {
+                            const [movedCat] = localWikiData.categories.splice(fromIndex, 1);
+                            localWikiData.categories.splice(toIndex, 0, movedCat);
+                            persistData();
+                            renderHome(document.getElementById('contentGrid'));
+                            renderNavigation();
+                        }
+                        return;
+                    }
+
+                    // Handle ITEM Drop (into category - append to end)
+                    if (e.dataTransfer.types.includes('application/wiki-item')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        catGroup.classList.remove('drag-over-cat');
+
+                        const data = JSON.parse(e.dataTransfer.getData('application/wiki-item'));
+
+                        // Extract Item
+                        let movedItem;
+                        if (data.origin === 'direct') {
+                            movedItem = localWikiData.categories[data.catIndex].items.splice(data.itemIndex, 1)[0];
+                        } else {
+                            movedItem = localWikiData.categories[data.catIndex].subcategories[data.subcatIndex].items.splice(data.itemIndex, 1)[0];
+                        }
+
+                        // Append to this category
+                        if (movedItem) {
+                            category.items.push(movedItem);
+                            persistData();
+                            renderHome(document.getElementById('contentGrid'));
+                        }
                     }
                 });
             }
@@ -2654,9 +2718,11 @@ function renderHome(container) {
                         li.dataset.itemIndex = itemIndex;
 
                         li.addEventListener('dragstart', (e) => {
+                            e.stopPropagation();
                             li.classList.add('dragging');
-                            e.dataTransfer.setData('text/plain', JSON.stringify({
-                                categoryId: category.id,
+                            e.dataTransfer.setData('application/wiki-item', JSON.stringify({
+                                origin: 'direct',
+                                catIndex: catIndex,
                                 itemIndex: itemIndex
                             }));
                             e.dataTransfer.effectAllowed = 'move';
@@ -2668,9 +2734,12 @@ function renderHome(container) {
                         });
 
                         li.addEventListener('dragover', (e) => {
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = 'move';
-                            li.classList.add('drag-over');
+                            if (e.dataTransfer.types.includes('application/wiki-item')) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.dataTransfer.dropEffect = 'move';
+                                li.classList.add('drag-over');
+                            }
                         });
 
                         li.addEventListener('dragleave', () => {
@@ -2678,24 +2747,32 @@ function renderHome(container) {
                         });
 
                         li.addEventListener('drop', (e) => {
+                            if (!e.dataTransfer.types.includes('application/wiki-item')) return;
                             e.preventDefault();
+                            e.stopPropagation();
                             li.classList.remove('drag-over');
 
-                            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                            const fromCatId = data.categoryId;
-                            const fromIndex = data.itemIndex;
-                            const toCatId = category.id;
-                            const toIndex = itemIndex;
+                            const data = JSON.parse(e.dataTransfer.getData('application/wiki-item'));
 
-                            // Only allow reorder within same category
-                            if (fromCatId === toCatId && fromIndex !== toIndex) {
-                                const cat = localWikiData.categories.find(c => c.id === fromCatId);
-                                if (cat) {
-                                    const [movedItem] = cat.items.splice(fromIndex, 1);
-                                    cat.items.splice(toIndex, 0, movedItem);
-                                    persistData();
-                                    renderHome(document.getElementById('contentGrid'));
+                            // Remove from source
+                            let movedItem;
+                            if (data.origin === 'direct') {
+                                movedItem = localWikiData.categories[data.catIndex].items.splice(data.itemIndex, 1)[0];
+                            } else {
+                                movedItem = localWikiData.categories[data.catIndex].subcategories[data.subcatIndex].items.splice(data.itemIndex, 1)[0];
+                            }
+
+                            if (movedItem) {
+                                // Calculate Drop Index
+                                let dropIndex = itemIndex;
+                                // If moving within same list and source is before target, adjust
+                                if (data.origin === 'direct' && data.catIndex === catIndex && data.itemIndex < itemIndex) {
+                                    dropIndex--;
                                 }
+
+                                category.items.splice(dropIndex, 0, movedItem);
+                                persistData();
+                                renderHome(document.getElementById('contentGrid'));
                             }
                         });
                     }
@@ -2804,7 +2881,7 @@ function renderHome(container) {
                         });
 
                         subcatGroup.addEventListener('dragover', (e) => {
-                            if (e.dataTransfer.types.includes('application/subcategory')) {
+                            if (e.dataTransfer.types.includes('application/subcategory') || e.dataTransfer.types.includes('application/wiki-item')) {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 e.dataTransfer.dropEffect = 'move';
@@ -2817,23 +2894,48 @@ function renderHome(container) {
                         });
 
                         subcatGroup.addEventListener('drop', (e) => {
-                            if (!e.dataTransfer.types.includes('application/subcategory')) return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            subcatGroup.classList.remove('drag-over-subcat');
+                            if (e.dataTransfer.types.includes('application/subcategory')) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                subcatGroup.classList.remove('drag-over-subcat');
 
-                            const data = JSON.parse(e.dataTransfer.getData('application/subcategory'));
-                            const fromCatIndex = data.catIndex;
-                            const fromSubcatIndex = data.subcatIndex;
-                            const toCatIndex = catIndex;
-                            const toSubcatIndex = actualSubcatIndex;
+                                const data = JSON.parse(e.dataTransfer.getData('application/subcategory'));
+                                const fromCatIndex = data.catIndex;
+                                const fromSubcatIndex = data.subcatIndex;
+                                const toCatIndex = catIndex;
+                                const toSubcatIndex = actualSubcatIndex;
 
-                            // Only allow reorder within same category
-                            if (fromCatIndex === toCatIndex && fromSubcatIndex !== toSubcatIndex) {
-                                const cat = localWikiData.categories[fromCatIndex];
-                                if (cat && cat.subcategories) {
-                                    const [movedSubcat] = cat.subcategories.splice(fromSubcatIndex, 1);
-                                    cat.subcategories.splice(toSubcatIndex, 0, movedSubcat);
+                                if (fromCatIndex === toCatIndex && fromSubcatIndex !== toSubcatIndex) {
+                                    const cat = localWikiData.categories[fromCatIndex];
+                                    if (cat && cat.subcategories) {
+                                        const [movedSubcat] = cat.subcategories.splice(fromSubcatIndex, 1);
+                                        cat.subcategories.splice(toSubcatIndex, 0, movedSubcat);
+                                        persistData();
+                                        renderHome(document.getElementById('contentGrid'));
+                                    }
+                                }
+                                return;
+                            }
+
+                            if (e.dataTransfer.types.includes('application/wiki-item')) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                subcatGroup.classList.remove('drag-over-subcat');
+
+                                const data = JSON.parse(e.dataTransfer.getData('application/wiki-item'));
+
+                                // Remove from source
+                                let movedItem;
+                                if (data.origin === 'direct') {
+                                    movedItem = localWikiData.categories[data.catIndex].items.splice(data.itemIndex, 1)[0];
+                                } else {
+                                    movedItem = localWikiData.categories[data.catIndex].subcategories[data.subcatIndex].items.splice(data.itemIndex, 1)[0];
+                                }
+
+                                // Append to this subcategory
+                                if (movedItem) {
+                                    if (!subcat.items) subcat.items = [];
+                                    subcat.items.push(movedItem);
                                     persistData();
                                     renderHome(document.getElementById('contentGrid'));
                                 }
@@ -2999,9 +3101,10 @@ function renderHome(container) {
                             li.dataset.itemIndex = itemIdx;
 
                             li.addEventListener('dragstart', (e) => {
+                                e.stopPropagation();
                                 li.classList.add('dragging');
-                                e.dataTransfer.setData('text/plain', JSON.stringify({
-                                    type: 'subcatItem',
+                                e.dataTransfer.setData('application/wiki-item', JSON.stringify({
+                                    origin: 'subcat',
                                     catIndex: catIndex,
                                     subcatIndex: actualSubcatIndex,
                                     itemIndex: itemIdx
@@ -3015,9 +3118,12 @@ function renderHome(container) {
                             });
 
                             li.addEventListener('dragover', (e) => {
-                                e.preventDefault();
-                                e.dataTransfer.dropEffect = 'move';
-                                li.classList.add('drag-over');
+                                if (e.dataTransfer.types.includes('application/wiki-item')) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.dataTransfer.dropEffect = 'move';
+                                    li.classList.add('drag-over');
+                                }
                             });
 
                             li.addEventListener('dragleave', () => {
@@ -3025,20 +3131,31 @@ function renderHome(container) {
                             });
 
                             li.addEventListener('drop', (e) => {
+                                if (!e.dataTransfer.types.includes('application/wiki-item')) return;
                                 e.preventDefault();
+                                e.stopPropagation();
                                 li.classList.remove('drag-over');
 
-                                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                                const data = JSON.parse(e.dataTransfer.getData('application/wiki-item'));
 
-                                // Only allow reorder within same subcategory
-                                if (data.type === 'subcatItem' &&
-                                    data.catIndex === catIndex &&
-                                    data.subcatIndex === actualSubcatIndex &&
-                                    data.itemIndex !== itemIdx) {
+                                // Remove from source
+                                let movedItem;
+                                if (data.origin === 'direct') {
+                                    movedItem = localWikiData.categories[data.catIndex].items.splice(data.itemIndex, 1)[0];
+                                } else {
+                                    movedItem = localWikiData.categories[data.catIndex].subcategories[data.subcatIndex].items.splice(data.itemIndex, 1)[0];
+                                }
 
-                                    const subcatItems = localWikiData.categories[catIndex].subcategories[actualSubcatIndex].items;
-                                    const [movedItem] = subcatItems.splice(data.itemIndex, 1);
-                                    subcatItems.splice(itemIdx, 0, movedItem);
+                                if (movedItem) {
+                                    // Calculate Drop Index
+                                    let dropIndex = itemIdx;
+                                    // If moving within same list and source is before target, adjust
+                                    if (data.origin === 'subcat' && data.catIndex === catIndex && data.subcatIndex === actualSubcatIndex && data.itemIndex < itemIdx) {
+                                        dropIndex--;
+                                    }
+
+                                    if (!subcat.items) subcat.items = [];
+                                    subcat.items.splice(dropIndex, 0, movedItem);
                                     persistData();
                                     renderHome(document.getElementById('contentGrid'));
                                 }
@@ -4231,6 +4348,7 @@ function renderItemDetail(container) {
                     
                     <div class="actions" id="item-actions-container" style="margin-top: 30px;">
                         <button id="detail-back-btn" class="btn-back">Go Back</button>
+                        <button id="duplicate-item-btn" class="btn-back" style="margin-left: 10px; background-color: #2196F3; color: white; border: none;">Duplicate Item</button>
                         <button id="delete-item-btn" class="btn-back btn-danger" style="margin-left: 20px; margin-top: 0;">Delete Item</button>
                     </div>
                 </article>
@@ -4486,6 +4604,49 @@ function renderItemDetail(container) {
                 btn.addEventListener('click', function () {
                     this.closest('.hidden-info-edit-section').remove();
                 });
+            });
+
+            // Duplicate Button
+            const duplicateBtn = document.getElementById('duplicate-item-btn');
+            duplicateBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const newName = prompt('Enter name for the new item:', foundItem.name + ' (Copy)');
+                if (newName) {
+                    // Deep copy
+                    const newItem = JSON.parse(JSON.stringify(foundItem));
+                    newItem.id = `item-${Date.now()}`;
+                    newItem.name = newName;
+
+                    // Add to same location
+                    let added = false;
+                    for (const cat of localWikiData.categories) {
+                        // Check direct
+                        if (cat.items && cat.items.some(i => i.id === itemId)) {
+                            cat.items.push(newItem);
+                            added = true;
+                            break;
+                        }
+                        // Check subcats
+                        if (cat.subcategories) {
+                            for (const sub of cat.subcategories) {
+                                if ((sub.items || []).some(i => i.id === itemId)) {
+                                    sub.items.push(newItem);
+                                    added = true;
+                                    break;
+                                }
+                            }
+                            if (added) break;
+                        }
+                    }
+
+                    if (added) {
+                        persistData();
+                        // Redirect to the new item
+                        window.location.href = `index.html?id=${newItem.id}`;
+                    } else {
+                        alert('Error: Could not determine where to add the duplicate.');
+                    }
+                }
             });
 
             // Delete button with 2-step

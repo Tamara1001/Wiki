@@ -544,7 +544,10 @@
             localUsers.forEach((u, index) => {
                 const chars = u.characters || [];
                 const charsDisplay = chars.length > 0
-                    ? chars.map(c => `<span style="background: var(--accent-blue); padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin-right: 4px;">${c}</span>`).join('')
+                    ? chars.map(c => {
+                        const name = (typeof c === 'string') ? c : c.name;
+                        return `<span style="background: var(--accent-blue); padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin-right: 4px;">${name}</span>`;
+                    }).join('')
                     : '<span style="color: var(--text-secondary); font-size: 0.8em;">No characters</span>';
 
                 html += `
@@ -632,34 +635,45 @@
             }
 
             let charListHtml = chars.length > 0
-                ? chars.map((c, i) => `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--bg-dark); margin-bottom: 5px; border-radius: 4px;">
-                        <span>${c}</span>
-                        <button class="remove-char-btn" data-char-index="${i}" style="background: #ff5252; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer;">✕</button>
+                ? chars.map((c, i) => {
+                    const name = (typeof c === 'string') ? c : c.name;
+                    const url = (typeof c === 'object' && c.sheetUrl) ? c.sheetUrl : '';
+
+                    return `
+                    <div style="background: var(--bg-dark); margin-bottom: 8px; border-radius: 6px; padding: 12px; border: 1px solid var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-weight: 600; color: var(--accent-primary);">${name}</span>
+                            <button class="remove-char-btn" data-char-index="${i}" style="background: #ff5252; border: none; color: white; padding: 2px 8px; border-radius: 4px; cursor: pointer;">✕</button>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2rem;">📄</span>
+                            <input type="text" class="char-sheet-input" data-index="${i}" value="${url}" placeholder="Paste Google Docs/Sheet Link here..." style="flex: 1; padding: 8px; background: #222; color: white; border: 1px solid #444; border-radius: 4px; font-size: 0.9em;">
+                        </div>
                     </div>
-                `).join('')
-                : '<p style="color: var(--text-secondary);">No characters assigned.</p>';
+                `;
+                }).join('')
+                : '<p style="color: var(--text-secondary); text-align: center;">No characters assigned.</p>';
 
             modal.innerHTML = `
-                <div style="background: var(--bg-card); padding: 30px; border-radius: 10px; width: 400px; max-width: 90%;">
-                    <h3 style="margin-top: 0;">Manage Characters: ${user.username}</h3>
+                <div style="background: var(--bg-card); padding: 30px; border-radius: 12px; width: 450px; max-width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                    <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px;">Manage Characters: <span style="color: var(--text-secondary);">${user.username}</span></h3>
                     
-                    <div style="margin-bottom: 20px;">
-                        <label>Add Character</label>
-                        <div style="display: flex; gap: 10px; margin-top: 5px;">
-                            <input type="text" id="new-char-name" placeholder="Character name" style="flex: 1; padding: 10px; background: var(--bg-dark); color: white; border: 1px solid var(--border-color);">
-                            <button id="add-char-btn" class="btn-primary" style="width: auto; padding: 10px 15px;">+ Add</button>
+                    <div style="margin-bottom: 25px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Add New Character</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="new-char-name" placeholder="Character Name" style="flex: 1; padding: 10px; background: var(--bg-dark); color: white; border: 1px solid var(--border-color); border-radius: 4px;">
+                            <button id="add-char-btn" class="btn-primary" style="padding: 10px 20px;">+ Add</button>
                         </div>
                     </div>
                     
-                    <div style="margin-bottom: 20px;">
-                        <label>Current Characters</label>
-                        <div id="char-list" style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
+                    <div style="margin-bottom: 25px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Assigned Characters</label>
+                        <div id="char-list" style="max-height: 250px; overflow-y: auto; padding-right: 5px;">
                             ${charListHtml}
                         </div>
                     </div>
                     
-                    <button id="close-char-modal" class="btn-back" style="width: 100%;">Close</button>
+                    <button id="close-char-modal" class="btn-back" style="width: 100%; padding: 12px;">Close</button>
                 </div>
             `;
 
@@ -679,6 +693,13 @@
                 btn.addEventListener('click', () => {
                     removeCharacterFromUser(currentCharUserIndex, parseInt(btn.dataset.charIndex));
                     openCharacterManager(currentCharUserIndex); // Refresh modal
+                });
+            });
+
+            // Character Sheet Inputs
+            modal.querySelectorAll('.char-sheet-input').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    updateCharacterSheetUrl(currentCharUserIndex, parseInt(e.target.dataset.index), e.target.value);
                 });
             });
 
@@ -702,7 +723,11 @@
             if (!localUsers[userIndex].characters) {
                 localUsers[userIndex].characters = [];
             }
-            localUsers[userIndex].characters.push(characterName);
+            // Store as object for new characters
+            localUsers[userIndex].characters.push({
+                name: characterName,
+                sheetUrl: ''
+            });
             saveLocalUsers(localUsers);
         }
 
@@ -710,6 +735,23 @@
             const localUsers = getLocalUsers();
             if (localUsers[userIndex].characters) {
                 localUsers[userIndex].characters.splice(charIndex, 1);
+                saveLocalUsers(localUsers);
+            }
+        }
+
+        function updateCharacterSheetUrl(userIndex, charIndex, url) {
+            const localUsers = getLocalUsers();
+            if (localUsers[userIndex].characters && localUsers[userIndex].characters[charIndex] !== undefined) {
+                const char = localUsers[userIndex].characters[charIndex];
+                if (typeof char === 'string') {
+                    // Convert legacy string to object on edit
+                    localUsers[userIndex].characters[charIndex] = {
+                        name: char,
+                        sheetUrl: url
+                    };
+                } else {
+                    localUsers[userIndex].characters[charIndex].sheetUrl = url;
+                }
                 saveLocalUsers(localUsers);
             }
         }
@@ -729,10 +771,13 @@
                 try {
                     return JSON.parse(stored);
                 } catch (e) {
-                    return [...users]; // Fallback to original
+                    // Fallback check
+                    if (typeof users !== 'undefined') return [...users];
+                    return [];
                 }
             }
-            return [...users]; // Copy of original users array
+            if (typeof users !== 'undefined') return [...users]; // Copy of original users array
+            return [];
         }
 
         function saveLocalUsers(userList) {

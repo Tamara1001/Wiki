@@ -487,6 +487,53 @@ function selectImageForResize(img) {
     sep2.style.cssText = 'width: 1px; background: #444; margin: 0 2px;';
     controlBar.appendChild(sep2);
 
+    // Replace button
+    const replaceBtn = document.createElement('button');
+    replaceBtn.innerHTML = '🔄';
+    replaceBtn.title = 'Replace Image';
+    replaceBtn.style.cssText = `
+        padding: 4px 8px;
+        background: #FF9800;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+    `;
+
+    // Hidden file input for replacement
+    const replaceInput = document.createElement('input');
+    replaceInput.type = 'file';
+    replaceInput.accept = 'image/*';
+    replaceInput.style.display = 'none';
+
+    replaceBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        replaceInput.click();
+    });
+
+    replaceInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            // Keep current dimensions
+            const currentWidth = img.style.width || img.offsetWidth + 'px';
+            const currentHeight = img.style.height || img.offsetHeight + 'px';
+
+            img.src = event.target.result;
+            img.style.width = currentWidth;
+            img.style.height = currentHeight;
+        };
+        reader.readAsDataURL(file);
+        replaceInput.value = '';
+    });
+
+    controlBar.appendChild(replaceBtn);
+    controlBar.appendChild(replaceInput);
+
     // Delete button
     const deleteBtn = document.createElement('button');
     deleteBtn.innerHTML = '×';
@@ -1291,7 +1338,7 @@ function createInlineToolbar(targetElement, toolbarId) {
                 img.src = base64;
                 img.className = 'desc-inline-image';
                 img.style.cssText = 'max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block; cursor: pointer;';
-                img.title = 'Click to delete this image';
+                img.title = 'Click to edit this image';
 
                 const selection = window.getSelection();
                 if (selection.rangeCount > 0) {
@@ -1305,13 +1352,7 @@ function createInlineToolbar(targetElement, toolbarId) {
                 } else {
                     targetElement.appendChild(img);
                 }
-
-                // Add delete handler
-                img.addEventListener('click', () => {
-                    if (confirm('Delete this image?')) {
-                        img.remove();
-                    }
-                });
+                // Image click is handled by initImageResizer - no additional handler needed
             };
             tempImg.src = event.target.result;
         };
@@ -1565,7 +1606,7 @@ function createFloatingToolbar() {
                 img.src = base64;
                 img.className = 'desc-inline-image';
                 img.style.cssText = 'max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block; cursor: pointer;';
-                img.title = 'Click to delete this image';
+                img.title = 'Click to edit this image';
 
                 // Insert at selection
                 const selection = window.getSelection();
@@ -1580,9 +1621,7 @@ function createFloatingToolbar() {
                 } else {
                     activeEditableField.appendChild(img);
                 }
-
-                // Add delete handler to the new image
-                setupInlineImageDeleteHandler(img);
+                // Image click is handled by initImageResizer - no additional handler needed
             };
             tempImg.src = event.target.result;
         };
@@ -4279,7 +4318,10 @@ function renderItemDetail(container) {
                     <a href="index.html">Home</a> &gt; <a href="index.html?category=${foundCategory.id}">${foundCategory.name}</a> &gt; <span id="item-name-breadcrumb">${foundItem.name}</span>
                 </div>
                 <article class="item-detail">
-                    <h1 class="rich-editable item-title-rich" id="item-title-edit" data-field="name" data-original="${escapeHtml(foundItem.name)}">${foundItem.name}</h1>
+                    <div class="item-header-wrapper" style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
+                        <div id="item-main-image-container" style="flex-shrink: 0;"></div>
+                        <h1 class="rich-editable item-title-rich" id="item-title-edit" data-field="name" data-original="${escapeHtml(foundItem.name)}" style="margin: 0; flex: 1;">${foundItem.name}</h1>
+                    </div>
                     
                     <div class="item-description">
                         <div class="rich-text-toolbar" id="descToolbar">
@@ -4357,6 +4399,17 @@ function renderItemDetail(container) {
             container.dataset.itemId = itemId;
 
             // Setup inline edit change tracking
+            // Populate item main image
+            const itemImageContainer = document.getElementById('item-main-image-container');
+            if (itemImageContainer) {
+                const imgUploader = createImageUploader(foundItem.image, (base64) => {
+                    foundItem.image = base64;
+                    persistData();
+                });
+                imgUploader.style.cssText = 'width: 80px; height: 80px;';
+                itemImageContainer.appendChild(imgUploader);
+            }
+
             document.querySelectorAll('#item-title-edit, #item-desc-edit, #item-restricted-edit').forEach(el => {
                 el.addEventListener('input', () => {
                     const original = el.dataset.original || '';
@@ -4715,7 +4768,10 @@ function renderItemDetail(container) {
                     ${breadcrumbPath}
                 </div>
                 <article class="item-detail">
-                    <h1 class="${titleClass}">${foundItem.name}</h1>
+                    <div class="item-header-wrapper" style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
+                        ${foundItem.image ? `<img src="${foundItem.image}" alt="" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; flex-shrink: 0;">` : ''}
+                        <h1 class="${titleClass}" style="margin: 0; flex: 1;">${foundItem.name}</h1>
+                    </div>
                     
                     <div class="item-description">
                         <p>${foundItem.description || ''}</p>
@@ -4986,17 +5042,18 @@ function renderSubItemDetail(container, parentItem, category, subcategory, subIt
             ${breadcrumbPath}
         </div>
         <article class="item-detail">
-            ${isInlineEdit ? `
-                <h1 class="rich-editable subitem-detail-title" id="subitem-title-edit" data-item-id="${parentItemId}" data-subitem-index="${subItemIndex}" data-field="subItemName" data-original="${subItem.name}">${subItem.name}</h1>
-            ` : `
-                <h1 class="${/\<font|\<span|style=|color[=:]/i.test(subItem.name) ? 'has-formatting' : ''}">${subItem.name}</h1>
-            `}
-            
-            <div id="subitem-image-container" style="margin: 20px 0;"></div>
+            <div class="item-header-wrapper" style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
+                <div id="subitem-image-container" style="flex-shrink: 0;"></div>
+                ${isInlineEdit ? `
+                    <h1 class="rich-editable subitem-detail-title" id="subitem-title-edit" data-item-id="${parentItemId}" data-subitem-index="${subItemIndex}" data-field="subItemName" data-original="${escapeHtml(subItem.name)}" style="margin: 0; flex: 1;">${subItem.name}</h1>
+                ` : `
+                    <h1 class="${/<font|<span|style=|color[=:]/i.test(subItem.name) ? 'has-formatting' : ''}" style="margin: 0; flex: 1;">${subItem.name}</h1>
+                `}
+            </div>
             
             <div class="item-description" style="margin-top: 20px;">
                 ${isInlineEdit ? `
-                    <div class="rich-editable subitem-detail-desc" id="subitem-desc-edit" data-item-id="${parentItemId}" data-subitem-index="${subItemIndex}" data-field="subItemDescription" data-original="${subItem.description || ''}">${subItem.description || 'Click to add description...'}</div>
+                    <div class="rich-editable subitem-detail-desc" id="subitem-desc-edit" data-item-id="${parentItemId}" data-subitem-index="${subItemIndex}" data-field="subItemDescription" data-original="${escapeHtml(subItem.description || '')}">${subItem.description || 'Click to add description...'}</div>
                 ` : `
                     <p>${subItem.description || 'No description.'}</p>
                 `}
@@ -5027,13 +5084,13 @@ function renderSubItemDetail(container, parentItem, category, subcategory, subIt
                     persistData();
                 }
             });
-            imgUploader.style.cssText = 'width: 200px; height: 200px;';
+            imgUploader.style.cssText = 'width: 80px; height: 80px;';
             imgContainer.appendChild(imgUploader);
         } else if (subItem.image) {
             const img = document.createElement('img');
             img.src = subItem.image;
             img.alt = subItem.name;
-            img.style.cssText = 'max-width: 300px; max-height: 300px; border-radius: 10px; object-fit: cover;';
+            img.style.cssText = 'width: 80px; height: 80px; border-radius: 8px; object-fit: cover;';
             imgContainer.appendChild(img);
         }
     }

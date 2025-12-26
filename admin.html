@@ -242,8 +242,22 @@
         </div>
     </div>
 
-    <script src="assets/data.js"></script>
-    <script src="assets/script.js"></script>
+    <!-- Load data.js and script.js with cache-busting -->
+    <script>
+        (function () {
+            var script = document.createElement('script');
+            script.src = 'assets/data.js?v=' + Date.now();
+            script.onload = function () {
+                var mainScript = document.createElement('script');
+                mainScript.src = 'assets/script.js?v=' + Date.now();
+                mainScript.onload = function () {
+                    if (typeof initWiki === 'function') initWiki();
+                };
+                document.body.appendChild(mainScript);
+            };
+            document.body.appendChild(script);
+        })();
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // Check if user is admin

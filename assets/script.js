@@ -68,21 +68,6 @@ function loadWikiData() {
     }
 }
 
-// Global Save function
-function saveGlobalChanges() {
-    localStorage.setItem('modifiedWikiData', JSON.stringify(localWikiData));
-    alert('Changes saved successfully! (Local Storage)');
-    // We don't necessarily need to reload, but let's refresh UI
-    initWiki();
-}
-
-function resetWikiData() {
-    if (confirm('Are you sure you want to reset all changes to default?')) {
-        localStorage.removeItem('modifiedWikiData');
-        location.reload();
-    }
-}
-
 function persistData() {
     localWikiData.lastUpdated = Date.now();
     localStorage.setItem('modifiedWikiData', JSON.stringify(localWikiData));
@@ -1948,6 +1933,10 @@ function updateAuthUI() {
         const existingCharSelect = document.getElementById('charProfileSelect');
         if (existingCharSelect) existingCharSelect.remove();
 
+        // Remove existing sheet link button
+        const existingSheetLink = document.getElementById('charSheetLink');
+        if (existingSheetLink) existingSheetLink.remove();
+
         const userChars = getUserCharacters(currentUser.username);
         if (userChars && userChars.length > 0) {
             const charSelect = document.createElement('select');
@@ -1957,10 +1946,26 @@ function updateAuthUI() {
             // Get current selected character from session (name string)
             let currentCharName = sessionStorage.getItem('selectedCharacter');
 
+            // Robust extraction - handle all edge cases
+            if (currentCharName) {
+                // Fix corrupted "[object Object]" strings
+                if (currentCharName === '[object Object]' || currentCharName.startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(currentCharName);
+                        currentCharName = parsed.name || null;
+                    } catch (e) {
+                        currentCharName = null; // Reset if corrupted
+                    }
+                }
+            }
+
             // Fallback ensure valid selection
             const firstChar = userChars[0];
             const firstCharName = (typeof firstChar === 'string') ? firstChar : firstChar.name;
-            if (!currentCharName) currentCharName = firstCharName;
+            if (!currentCharName) {
+                currentCharName = firstCharName;
+                sessionStorage.setItem('selectedCharacter', currentCharName); // Fix storage
+            }
 
             userChars.forEach(char => {
                 const charName = (typeof char === 'string') ? char : char.name;
@@ -2014,8 +2019,11 @@ function updateAuthUI() {
             controls.insertBefore(charSelect, authBtn);
             controls.insertBefore(sheetLinkBtn, authBtn);
 
-            // Update username display to include character
-            userDisplay.textContent = currentUser.username + ' - ' + currentCharName + (currentUser.role === 'admin' ? ' (Admin)' : '');
+            // Update username display to include character (ensure charName is a string)
+            const displayCharName = (typeof currentCharName === 'object' && currentCharName !== null)
+                ? (currentCharName.name || 'Unknown')
+                : currentCharName;
+            userDisplay.textContent = currentUser.username + ' - ' + displayCharName + (currentUser.role === 'admin' ? ' (Admin)' : '');
         }
     } else {
         authBtn.textContent = 'Login';
@@ -2071,6 +2079,23 @@ if (menuBtn) menuBtn.addEventListener('click', toggleSidebar);
 if (closeSidebarBtn) closeSidebarBtn.addEventListener('click', toggleSidebar);
 if (sidebarOverlay) sidebarOverlay.addEventListener('click', toggleSidebar);
 
+// Sidebar Collapse/Expand Toggle
+const sidebarToggleBtn = document.getElementById('sidebarToggle');
+if (sidebarToggleBtn && sidebar) {
+    // Restore collapsed state from localStorage
+    if (localStorage.getItem('sidebarCollapsed') === 'true') {
+        sidebar.classList.add('collapsed');
+        sidebarToggleBtn.textContent = '▶';
+    }
+
+    sidebarToggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        sidebarToggleBtn.textContent = isCollapsed ? '▶' : '◀';
+        localStorage.setItem('sidebarCollapsed', isCollapsed);
+    });
+}
+
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         if (sidebar.classList.contains('active')) toggleSidebar();
@@ -2107,6 +2132,39 @@ function initWiki() {
         console.error('Auth Init Failed:', e);
     }
 
+    // Ensure Maps category exists
+    ensureMapsCategory();
+
+    // Initialize Sidebar Logo (editable for admins)
+    const sidebarLogo = document.getElementById('sidebarLogo');
+    if (sidebarLogo) {
+        // Load saved logo text
+        if (localWikiData.sidebarLogo) {
+            sidebarLogo.innerHTML = localWikiData.sidebarLogo;
+        }
+
+        // Make editable for admin users in edit mode only
+        if (currentUser && currentUser.role === 'admin' && isEditMode) {
+            sidebarLogo.contentEditable = 'true';
+            sidebarLogo.style.cursor = 'text';
+            sidebarLogo.title = 'Click to edit wiki name';
+
+            // Use floating toolbar for rich editing
+            makeRichEditable(sidebarLogo);
+
+            // Save on input
+            sidebarLogo.addEventListener('input', () => {
+                localWikiData.sidebarLogo = sidebarLogo.innerHTML;
+                persistData();
+            });
+
+            // Prevent navigation when clicking (admin editing)
+            sidebarLogo.addEventListener('click', (e) => {
+                e.preventDefault();
+            });
+        }
+    }
+
     try {
         renderNavigation();
     } catch (e) {
@@ -2129,6 +2187,14 @@ function initWiki() {
     } else if (itemContainer) {
         console.log('Rendering Item Detail');
         renderItemDetail(itemContainer);
+    }
+
+    // Reveal content after data loads (remove loading state)
+    const mainContent = document.querySelector('.main-content.loading');
+    if (mainContent) {
+        mainContent.classList.remove('loading');
+        mainContent.style.transition = 'opacity 0.15s ease-in';
+        mainContent.style.opacity = '1';
     }
 }
 
@@ -2863,16 +2929,28 @@ function renderHome(container) {
                     list.appendChild(li);
                 });
 
-                // Add Item button
+                // Add Item button (or Add Map for maps category)
                 if (currentUser && currentUser.role === 'admin' && isEditMode) {
                     const addItemLi = document.createElement('li');
                     addItemLi.className = 'add-item-card';
                     const addItemBtn = document.createElement('button');
-                    addItemBtn.textContent = '+ Add New Item';
-                    addItemBtn.onclick = () => {
-                        console.log('Add Item Button Clicked for:', category.id);
-                        addItem(category.id);
-                    };
+
+                    // Special button for Maps category
+                    if (category.id === 'maps') {
+                        addItemBtn.textContent = '🗺️ Add New Map';
+                        addItemBtn.style.background = 'linear-gradient(135deg, #2196F3, #1976D2)';
+                        addItemBtn.onclick = () => {
+                            console.log('Add Map Button Clicked');
+                            addMapItem();
+                        };
+                    } else {
+                        addItemBtn.textContent = '+ Add New Item';
+                        addItemBtn.onclick = () => {
+                            console.log('Add Item Button Clicked for:', category.id);
+                            addItem(category.id);
+                        };
+                    }
+
                     addItemLi.appendChild(addItemBtn);
                     list.appendChild(addItemLi);
                 }
@@ -3715,58 +3793,6 @@ function addCategory() {
     renderNavigation();
 }
 
-function editCategoryDescription(index) {
-    const category = localWikiData.categories[index];
-    const catGroup = document.getElementById(category.id);
-    if (!catGroup) return;
-
-    const descP = catGroup.querySelector('.category-description');
-    if (!descP) return;
-
-    const originalText = descP.textContent;
-
-    // Create Textarea
-    const textarea = document.createElement('textarea');
-    textarea.value = category.description || '';
-    textarea.style.cssText = 'width: 100%; min-height: 80px; padding: 10px; color: #fff; background: #333; border: 1px solid #555; font-size: 1rem; margin-bottom: 10px;';
-
-    // Create Save Button
-    const saveBtn = document.createElement('button');
-    saveBtn.textContent = '💾 Save';
-    saveBtn.className = 'btn-back';
-    saveBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: #4CAF50; width: auto; margin-right: 10px;';
-    saveBtn.onclick = () => {
-        localWikiData.categories[index].description = textarea.value.trim();
-        persistData();
-        renderHome(document.getElementById('contentGrid'));
-    };
-
-    // Create Cancel Button
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = '❌ Cancel';
-    cancelBtn.className = 'btn-back';
-    cancelBtn.style.cssText = 'padding: 5px 10px; font-size: 0.8rem; background-color: #666; width: auto;';
-    cancelBtn.onclick = () => {
-        renderHome(document.getElementById('contentGrid'));
-    };
-
-    // Replace description paragraph with textarea
-    const container = document.createElement('div');
-    container.appendChild(textarea);
-    container.appendChild(saveBtn);
-    container.appendChild(cancelBtn);
-
-    descP.replaceWith(container);
-
-    // Hide the Edit Description button
-    const editBtn = catGroup.querySelector('button');
-    if (editBtn && editBtn.textContent.includes('Edit Description')) {
-        editBtn.style.display = 'none';
-    }
-
-    textarea.focus();
-}
-
 // ==================== SUBCATEGORY FUNCTIONS ====================
 
 function addSubcategory(parentCategoryId) {
@@ -3924,56 +3950,524 @@ function deleteSubItem(parentItemId, subItemIndex) {
     }
 }
 
-function renameCategory(index) {
-    const category = localWikiData.categories[index];
-    const catGroup = document.getElementById(category.id);
-    if (!catGroup) return;
+// ==================== MAP SYSTEM ====================
 
-    const headerWrapper = catGroup.querySelector('.category-header-wrapper');
-    const h2 = headerWrapper.querySelector('h2');
+// Ensure "Maps" category exists
+function ensureMapsCategory() {
+    if (!localWikiData.categories.find(c => c.id === 'maps')) {
+        localWikiData.categories.push({
+            id: 'maps',
+            name: '🗺️ Maps',
+            description: 'Interactive maps with points of interest',
+            image: null,
+            items: [],
+            subcategories: []
+        });
+        persistData();
+    }
+}
 
-    // Save original content to restore on cancel
-    const originalContent = h2.innerHTML;
+// Add a new map item to the Maps category
+function addMapItem() {
+    ensureMapsCategory();
+    const mapsCategory = localWikiData.categories.find(c => c.id === 'maps');
 
-    // Create Input
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = category.name;
-    input.style.cssText = 'font-size: 1.5em; padding: 5px; color: #fff; background: #333; border: 1px solid #555; width: 300px;';
+    const newMap = {
+        id: `map-${Date.now()}`,
+        name: 'New Map',
+        type: 'map',
+        description: 'Map description',
+        mapImage: null,
+        pointsOfInterest: []
+    };
 
-    // Create Save Button
-    const saveBtn = document.createElement('button');
-    saveBtn.textContent = '💾';
-    saveBtn.title = 'Save Name';
-    saveBtn.style.cssText = 'margin-left: 10px; cursor: pointer; padding: 5px; background: none; border: none; font-size: 1.5em;';
-    saveBtn.onclick = () => {
-        if (input.value.trim()) {
-            localWikiData.categories[index].name = input.value.trim();
-            persistData();
-            renderHome(document.getElementById('contentGrid'));
-            renderNavigation();
+    mapsCategory.items.push(newMap);
+    persistData();
+    renderHome(document.getElementById('contentGrid'));
+    renderNavigation();
+}
+
+// Render map detail view
+function renderMapDetail(container, item) {
+    const isInEditMode = currentUser && currentUser.role === 'admin' && isEditMode;
+
+    // Find category for breadcrumb
+    let foundCategory = null;
+    for (const cat of localWikiData.categories) {
+        if (cat.items.find(i => i.id === item.id)) {
+            foundCategory = cat;
+            break;
+        }
+    }
+
+    let html = `
+        <div class="breadcrumb">
+            <a href="index.html">Home</a> &gt; 
+            ${foundCategory ? `<a href="index.html?category=${foundCategory.id}">${foundCategory.name}</a> &gt;` : ''}
+            <span>${item.name}</span>
+        </div>
+        <article class="item-detail">
+            <div class="item-header-wrapper" style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
+                ${isInEditMode ? `<div id="map-item-image-container" style="flex-shrink: 0;"></div>` : ''}
+                ${isInEditMode ? `
+                    <h1 class="rich-editable" id="map-title-edit" contenteditable="true" data-field="name" style="margin: 0; flex: 1;">${item.name}</h1>
+                ` : `
+                    <h1 style="margin: 0; flex: 1;">${item.name}</h1>
+                `}
+            </div>
+            
+            ${isInEditMode ? `
+                <div class="rich-editable" id="map-desc-edit" contenteditable="true" data-field="description" style="min-height: 60px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 20px;">
+                    ${item.description || 'Click to add description...'}
+                </div>
+            ` : `
+                <div class="item-description" style="margin-bottom: 20px;">
+                    <p>${item.description || ''}</p>
+                </div>
+            `}
+            
+            <div class="map-container" id="map-canvas">
+                ${item.mapImage ? `<img src="${item.mapImage}" class="map-background" alt="Map">` : `
+                    <div class="map-placeholder">
+                        ${isInEditMode ? '📍 Click "Set Background" to add a map image' : 'No map image set'}
+                    </div>
+                `}
+
+                <div id="map-layers-container"></div>
+                <div id="poi-layer"></div>
+            </div >
+
+    ${isInEditMode ? `
+                <div class="map-edit-controls">
+                    <button class="btn-set-bg" id="set-map-bg-btn">🖼️ Set Background</button>
+                    <button class="btn-manage-layers" id="manage-layers-btn" style="background: #2196F3;">Stack Layers</button>
+                    <button class="btn-add-poi" id="add-poi-btn">📍 Add Point of Interest</button>
+                </div>
+                <input type="file" id="map-bg-input" accept="image/*" style="display: none;">
+            ` : ''
+        }
+
+<div class="actions" style="margin-top: 30px;">
+    <button id="map-back-btn" class="btn-back">Go Back</button>
+</div>
+        </article >
+    `;
+
+    container.innerHTML = html;
+
+    // Render Layers
+    renderMapLayers(item);
+
+    // Render POIs
+    renderPOIs(item);
+
+    // Back button
+    document.getElementById('map-back-btn').onclick = () => {
+        if (foundCategory) {
+            window.location.href = `index.html ? category = ${foundCategory.id} `;
+        } else {
+            window.location.href = 'index.html';
         }
     };
 
-    // Create Cancel Button
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = '❌';
-    cancelBtn.title = 'Cancel';
-    cancelBtn.style.cssText = 'margin-left: 5px; cursor: pointer; padding: 5px; background: none; border: none; font-size: 1.5em;';
-    cancelBtn.onclick = () => {
-        h2.innerHTML = originalContent;
-        // Re-attach listeners is tricky with innerHTML, better to just re-render or be careful.
-        // For safety/simplicity in this app: RENDER_HOME
-        renderHome(document.getElementById('contentGrid'));
+    if (isInEditMode) {
+        // Title editing
+        const titleEdit = document.getElementById('map-title-edit');
+        if (titleEdit) {
+            makeRichEditable(titleEdit);
+            titleEdit.addEventListener('blur', () => {
+                item.name = titleEdit.innerHTML;
+                persistData();
+            });
+        }
+
+        // Description editing
+        const descEdit = document.getElementById('map-desc-edit');
+        if (descEdit) {
+            makeRichEditable(descEdit);
+            descEdit.addEventListener('blur', () => {
+                item.description = descEdit.innerHTML;
+                persistData();
+            });
+        }
+
+        // Set background button
+        document.getElementById('set-map-bg-btn').onclick = () => {
+            document.getElementById('map-bg-input').click();
+        };
+
+        document.getElementById('map-bg-input').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                item.mapImage = event.target.result;
+                persistData();
+                renderMapDetail(container, item);
+            };
+            reader.readAsDataURL(file);
+        };
+
+        // Add POI button
+        document.getElementById('add-poi-btn').onclick = () => {
+            showPOIModal(item, null, container);
+        };
+
+        // Manage Layers button
+        document.getElementById('manage-layers-btn').onclick = () => {
+            showLayerManager(item, container);
+        };
+    }
+}
+
+// Render POI markers on map
+function renderPOIs(item) {
+    const poiLayer = document.getElementById('poi-layer');
+    if (!poiLayer) return;
+
+    poiLayer.innerHTML = '';
+    const isInEditMode = currentUser && currentUser.role === 'admin' && isEditMode;
+    const selectedChar = sessionStorage.getItem('selectedCharacter');
+
+    (item.pointsOfInterest || []).forEach((poi, index) => {
+        let isVisible = true;
+
+        // 1. Check parent layer visibility (if assigned)
+        if (poi.layerId) {
+            if (item.layers) {
+                const parentLayer = item.layers.find(l => l.id === poi.layerId);
+                if (parentLayer) {
+                    // If parent layer is hidden toggle-wise
+                    if (parentLayer.visible === false) {
+                        isVisible = false;
+                    }
+                    // If parent layer is restricted by character
+                    if (isVisible && parentLayer.restrictedTo && parentLayer.restrictedTo.length > 0) {
+                        const canSeeLayer = isInEditMode ||
+                            (selectedChar && parentLayer.restrictedTo.map(c => c.toLowerCase().trim()).includes(selectedChar.toLowerCase().trim()));
+                        if (!canSeeLayer) isVisible = false;
+                    }
+                }
+            }
+        }
+
+        // 2. Check individual POI restriction (secondary to layer)
+        if (isVisible && poi.restrictedTo && poi.restrictedTo.length > 0) {
+            const canSee = isInEditMode ||
+                (selectedChar && poi.restrictedTo.map(c => c.toLowerCase().trim()).includes(selectedChar.toLowerCase().trim()));
+            if (!canSee) isVisible = false;
+        }
+
+        if (!isVisible && !isInEditMode) return;
+
+        // If hidden but in edit mode, maybe show with opacity?
+        const isSemiTransparent = !isVisible && isInEditMode;
+
+        // Scaling logic
+        const scale = poi.scale || 1;
+        // Base size is 40px for normal, 20px for no-image red dot (conceptually)
+        // But let's apply scale to the element dimensions. 
+        // Note: CSS defines 40px default. We override if scale != 1 or explicitly set.
+        const baseSize = poi.image ? 40 : (isInEditMode ? 20 : 0);
+        // For invsible view mode markers, size 0? Or keep them large for interaction?
+        // User asked "invisible but interactable". If size is 0, can't interact.
+        // So view mode no-image should probably remain a reasonable click target size (e.g. 40px default or scaled).
+        // Let's settle on: Image markers = 40px base. No-Image markers = 20px base (as per red dot intent).
+        // Actually, if it's invisible, we want a bigger target? 
+        // Let's stick to consistent logic: Layout size = Base * Scale.
+
+        // Revised Base Size:
+        // If image: 40px.
+        // If no image: 20px (Red dot logic).
+        const layoutBase = poi.image ? 40 : 20;
+        const size = layoutBase * scale;
+        const fontSize = 28 * scale;
+
+        const marker = document.createElement('div');
+        marker.className = 'poi-marker';
+        if (isInEditMode) marker.classList.add('edit-mode');
+
+        marker.style.left = `${poi.x}%`;
+        marker.style.top = `${poi.y}%`;
+
+        // Apply sizing
+        marker.style.width = `${size}px`;
+        marker.style.height = `${size}px`;
+        marker.style.fontSize = `${fontSize}px`; // For emoji scaling
+
+        if (isSemiTransparent) marker.style.opacity = '0.5';
+        marker.dataset.poiIndex = index;
+
+        // POI image handling
+        if (poi.image) {
+            marker.innerHTML = `<img src="${poi.image}" alt="${poi.title}">`;
+        } else {
+            // No image: Invisible in view mode, Red dot in edit mode
+            marker.classList.add('no-image');
+            if (isInEditMode) {
+                // Edit mode visual indicator (Red Dot via CSS or inline override if needed, but CSS is better)
+                // We leave content empty so it's just a shape
+            } else {
+                // View mode: completely invisible but interactive
+                // Handled by CSS .no-image
+            }
+        }
+
+        // Tooltip (shows on hover)
+        const tooltip = document.createElement('div');
+        tooltip.className = 'poi-tooltip';
+        tooltip.innerHTML = `
+    <div class="poi-title">${poi.image ? `<img src="${poi.image}" class="poi-image" alt="">` : ''}${poi.title}</div>
+        ${poi.description ? `<div class="poi-description">${poi.description}</div>` : ''}
+`;
+        marker.appendChild(tooltip);
+
+        // Click to navigate to link (works in all modes if link exists)
+        marker.addEventListener('click', (e) => {
+            if (isInEditMode && e.button === 0 && !e.ctrlKey) {
+                // In edit mode, regular click opens edit modal
+                const container = document.getElementById('itemDetailContainer');
+                showPOIModal(item, index, container);
+            } else if (poi.link) {
+                // Navigate to the link
+                window.location.href = poi.link;
+            }
+        });
+
+        // Edit mode: dragging only (Deletion moved to Modal)
+        if (isInEditMode) {
+            // Drag functionality
+            enablePOIDrag(marker, item, index);
+        }
+
+        poiLayer.appendChild(marker);
+    });
+}
+
+// Enable POI dragging
+function enablePOIDrag(marker, item, poiIndex) {
+    let isDragging = false;
+
+    marker.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('poi-delete-btn')) return;
+        isDragging = true;
+        marker.classList.add('dragging');
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+
+        const mapContainer = document.getElementById('map-canvas');
+        if (!mapContainer) return;
+
+        const rect = mapContainer.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+        // Clamp to container
+        const clampedX = Math.max(0, Math.min(100, x));
+        const clampedY = Math.max(0, Math.min(100, y));
+
+        marker.style.left = `${clampedX}% `;
+        marker.style.top = `${clampedY}% `;
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            marker.classList.remove('dragging');
+
+            // Save new position
+            const x = parseFloat(marker.style.left);
+            const y = parseFloat(marker.style.top);
+            item.pointsOfInterest[poiIndex].x = x;
+            item.pointsOfInterest[poiIndex].y = y;
+            persistData();
+        }
+    });
+}
+
+// Show POI creation/edit modal
+function showPOIModal(item, editIndex, container) {
+    const isEditing = editIndex !== null;
+    const poi = isEditing ? item.pointsOfInterest[editIndex] : { title: '', description: '', image: null, link: '', restrictedTo: [], x: 50, y: 50, scale: 1 };
+
+    // Build options for Layer Dropdown
+    let layerOptions = '<option value="">(None - Global/Individual)</option>';
+    if (item.layers && item.layers.length > 0) {
+        item.layers.forEach(layer => {
+            const isSelected = poi.layerId === layer.id ? 'selected' : '';
+            layerOptions += `<option value="${layer.id}" ${isSelected}>${layer.name}</option>`;
+        });
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'poi-modal';
+    modal.innerHTML = `
+    <div class="poi-modal-content">
+            <h3>${isEditing ? 'Edit' : 'New'} Point of Interest</h3>
+            
+            <label>Title</label>
+            <input type="text" id="poi-title-input" value="${poi.title}" placeholder="Enter title...">
+            
+            <label>Parent Layer (Inherits Visibility)</label>
+            <select id="poi-layer-select" style="width: 100%; padding: 8px; margin-bottom: 10px; background: var(--bg-dark); color: white; border: 1px solid var(--border-color); border-radius: 4px;">
+                ${layerOptions}
+            </select>
+            
+            <label>Size: <span id="poi-scale-display">${poi.scale || 1}x</span></label>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <span style="font-size: 0.8em;">0.5x</span>
+                <input type="range" id="poi-scale-input" min="0.5" max="10.0" step="0.1" value="${poi.scale || 1}" style="flex: 1;">
+                <span style="font-size: 0.8em;">10.0x</span>
+            </div>
+
+            <label>Description (optional)</label>
+            <input type="text" id="poi-desc-input" value="${poi.description || ''}" placeholder="Short description...">
+            
+            <label>Icon/Image</label>
+            <div class="poi-image-preview" id="poi-image-preview">
+                ${poi.image ? `<img src="${poi.image}">` : '📍'}
+            </div>
+            <div style="margin-top: 5px; display: flex; gap: 10px;">
+                <button id="poi-upload-btn" class="btn-primary" style="padding: 4px 8px; font-size: 0.8em; width: auto;">Upload Image</button>
+                <button id="poi-remove-image-btn" class="btn-back" style="padding: 4px 8px; font-size: 0.8em; width: auto; background: #ff5252; color: white; border: none;">Remove Image</button>
+            </div>
+            <input type="file" id="poi-image-input" accept="image/*" style="display: none;">
+            
+            <label>Link URL (optional)</label>
+            <input type="url" id="poi-link-input" value="${poi.link || ''}" placeholder="https://... or item.html?id=...">
+            
+            <label>Visible to Characters (optional override)</label>
+            <input type="text" id="poi-restricted-input" value="${poi.restrictedTo ? poi.restrictedTo.join(', ') : ''}" placeholder="Leave empty for all (or inherit from layer)">
+            <p style="font-size: 0.8em; color: var(--text-secondary); margin-top: -5px;">* If assigned to a layer, layer visibility rules apply first.</p>
+            
+            <div class="modal-actions" style="justify-content: space-between;">
+                ${isEditing ? `<button class="btn-cancel" id="poi-delete-btn" style="background-color: var(--accent-danger); color: white;">Delete POI</button>` : '<div></div>'}
+                <div style="display: flex; gap: 10px;">
+                    ${isEditing ? `<button class="btn-cancel" id="poi-duplicate-btn" style="background-color: #2196F3; color: white;">Duplicate</button>` : ''}
+                    <button class="btn-cancel" id="poi-cancel-btn">Cancel</button>
+                    <button class="btn-save" id="poi-save-btn">${isEditing ? 'Save' : 'Create'}</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    let selectedImage = poi.image;
+
+    // Scale Slider Update
+    const scaleInput = document.getElementById('poi-scale-input');
+    const scaleDisplay = document.getElementById('poi-scale-display');
+    scaleInput.oninput = () => {
+        scaleDisplay.textContent = scaleInput.value + 'x';
     };
 
-    // Clear and append
-    h2.innerHTML = '';
-    h2.appendChild(input);
-    h2.appendChild(saveBtn);
-    h2.appendChild(cancelBtn);
-    input.focus();
+    // Image preview click -> Trigger Upload
+    document.getElementById('poi-image-preview').onclick = () => {
+        document.getElementById('poi-image-input').click();
+    };
+
+    // Upload Button Click
+    document.getElementById('poi-upload-btn').onclick = (e) => {
+        e.preventDefault(); // Prevent closing if inside form
+        document.getElementById('poi-image-input').click();
+    };
+
+    // Remove Image Button Click
+    document.getElementById('poi-remove-image-btn').onclick = (e) => {
+        selectedImage = null;
+        document.getElementById('poi-image-preview').innerHTML = '📍';
+    };
+
+    document.getElementById('poi-image-input').onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            selectedImage = event.target.result;
+            document.getElementById('poi-image-preview').innerHTML = `<img src="${selectedImage}">`;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Save
+    document.getElementById('poi-save-btn').onclick = () => {
+        const title = document.getElementById('poi-title-input').value;
+        if (!title) {
+            alert('Title is required');
+            return;
+        }
+
+        const layerId = document.getElementById('poi-layer-select').value;
+        const scale = parseFloat(document.getElementById('poi-scale-input').value) || 1;
+        const restrictedVal = document.getElementById('poi-restricted-input').value.trim();
+        const restrictedTo = restrictedVal ? restrictedVal.split(',').map(s => s.trim()).filter(s => s) : [];
+
+        const newPOI = {
+            title: title,
+            description: document.getElementById('poi-desc-input').value,
+            image: selectedImage,
+            link: document.getElementById('poi-link-input').value,
+            restrictedTo: restrictedTo,
+            x: poi.x,
+            y: poi.y,
+            layerId: layerId || null, // Save selected layer ID
+            scale: scale
+        };
+
+        if (isEditing) {
+            item.pointsOfInterest[editIndex] = newPOI;
+        } else {
+            item.pointsOfInterest.push(newPOI);
+        }
+
+        persistData();
+        renderPOIs(item);
+        document.body.removeChild(modal);
+    };
+
+    // Delete
+    if (isEditing && document.getElementById('poi-delete-btn')) {
+        document.getElementById('poi-delete-btn').onclick = () => {
+            if (confirm(`Are you sure you want to delete "${poi.title}"?`)) {
+                item.pointsOfInterest.splice(editIndex, 1);
+                persistData();
+                renderPOIs(item);
+                document.body.removeChild(modal);
+            }
+        };
+    }
+
+    // Duplicate
+    const dupBtn = document.getElementById('poi-duplicate-btn');
+    if (dupBtn) {
+        dupBtn.onclick = () => {
+            const dupPOI = JSON.parse(JSON.stringify(poi));
+            dupPOI.x += 2; // Offset slightly
+            dupPOI.y += 2;
+            dupPOI.title += ' (Copy)';
+            item.pointsOfInterest.push(dupPOI);
+            persistData();
+            renderPOIs(item);
+            document.body.removeChild(modal);
+        };
+    }
+
+    // Cancel
+    document.getElementById('poi-cancel-btn').onclick = () => {
+        document.body.removeChild(modal);
+    };
 }
+
+
+
+
+
 
 function deleteCategory(index) {
     // REMOVED CONFIRM DIALOG - Handled by UI Button
@@ -4003,17 +4497,6 @@ function addItem(catId) {
         });
         persistData();
         renderHome(document.getElementById('contentGrid'));
-    }
-}
-
-function deleteItem(catId, itemId) {
-    if (confirm('Delete this item?')) {
-        const category = localWikiData.categories.find(c => c.id === catId);
-        if (category) {
-            category.items = category.items.filter(i => i.id !== itemId);
-            persistData();
-            renderHome(document.getElementById('contentGrid'));
-        }
     }
 }
 
@@ -4074,6 +4557,7 @@ function renderItemDetail(container) {
         return;
     }
 
+
     // Check if we're viewing a specific sub-item
     const subItemParam = params.get('subitem');
     if (subItemParam !== null && foundItem.subItems && foundItem.subItems[parseInt(subItemParam)]) {
@@ -4098,6 +4582,14 @@ function renderItemDetail(container) {
                 <a href="index.html">Return to Home</a>
             </div>
         `;
+        return;
+    }
+
+
+    // Map Item Delegation
+    // Always use specialized map renderer for map items, as it handles both View and Edit modes
+    if (foundItem.type === 'map') {
+        renderMapDetail(container, foundItem);
         return;
     }
 
@@ -4388,6 +4880,25 @@ function renderItemDetail(container) {
                         <button id="add-hidden-info-btn" class="btn-primary" style="margin-top: 15px; background-color: #9c27b0; width: auto;">+ Add Hidden Info</button>
                     </div>
                     
+                    ${foundItem.type === 'map' ? `
+                    <div style="margin-top: 30px;">
+                        <h3 style="color: var(--accent-primary); margin-bottom: 15px;">🗺️ Map Section</h3>
+                        <div class="map-container" id="map-canvas">
+                            ${foundItem.mapImage ? `<img src="${foundItem.mapImage}" class="map-background" alt="Map">` : `
+                                <div class="map-placeholder">
+                                    📍 Click "Set Background" to add a map image
+                                </div>
+                            `}
+                            <div id="poi-layer"></div>
+                        </div>
+                        <div class="map-edit-controls">
+                            <button class="btn-set-bg" id="set-map-bg-btn">🖼️ Set Background</button>
+                            <button class="btn-add-poi" id="add-poi-btn">📍 Add Point of Interest</button>
+                        </div>
+                        <input type="file" id="map-bg-input" accept="image/*" style="display: none;">
+                    </div>
+                    ` : ''}
+                    
                     <div class="actions" id="item-actions-container" style="margin-top: 30px;">
                         <button id="detail-back-btn" class="btn-back">Go Back</button>
                         <button id="duplicate-item-btn" class="btn-back" style="margin-left: 10px; background-color: #2196F3; color: white; border: none;">Duplicate Item</button>
@@ -4659,6 +5170,49 @@ function renderItemDetail(container) {
                 });
             });
 
+            // Map controls (only for map items)
+            if (foundItem.type === 'map') {
+                // Render POIs
+                renderPOIs(foundItem);
+
+                // Set background button
+                const setMapBgBtn = document.getElementById('set-map-bg-btn');
+                const mapBgInput = document.getElementById('map-bg-input');
+
+                if (setMapBgBtn && mapBgInput) {
+                    setMapBgBtn.onclick = () => mapBgInput.click();
+
+                    mapBgInput.onchange = (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            foundItem.mapImage = event.target.result;
+                            persistData();
+                            // Re-render the map container
+                            const mapCanvas = document.getElementById('map-canvas');
+                            if (mapCanvas) {
+                                mapCanvas.innerHTML = `
+                                    <img src="${foundItem.mapImage}" class="map-background" alt="Map">
+                                    <div id="poi-layer"></div>
+                                `;
+                                renderPOIs(foundItem);
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                    };
+                }
+
+                // Add POI button
+                const addPoiBtn = document.getElementById('add-poi-btn');
+                if (addPoiBtn) {
+                    addPoiBtn.onclick = () => {
+                        showPOIModal(foundItem, null, container);
+                    };
+                }
+            }
+
             // Duplicate Button
             const duplicateBtn = document.getElementById('duplicate-item-btn');
             duplicateBtn.addEventListener('click', (e) => {
@@ -4778,12 +5332,29 @@ function renderItemDetail(container) {
                         ${hiddenInfoHtml}
                     </div>
                     
+                    ${foundItem.type === 'map' ? `
+                    <div style="margin-top: 30px;">
+                        <h3 style="color: var(--accent-primary); margin-bottom: 15px;">🗺️ Map</h3>
+                        <div class="map-container" id="map-canvas">
+                            ${foundItem.mapImage ? `<img src="${foundItem.mapImage}" class="map-background" alt="Map">` : `
+                                <div class="map-placeholder">No map image set</div>
+                            `}
+                            <div id="poi-layer"></div>
+                        </div>
+                    </div>
+                    ` : ''}
+                    
                     <div class="actions" id="item-actions-container">
                         <button id="detail-back-btn" class="btn-back">Go Back</button>
                     </div>
                 </article>
             `;
             container.innerHTML = contentHtml;
+
+            // Render POIs for map items in view mode
+            if (foundItem.type === 'map') {
+                renderPOIs(foundItem);
+            }
         }
 
         const backBtn = document.getElementById('detail-back-btn');
@@ -5311,6 +5882,210 @@ if (searchInput) {
             searchResults.style.display = 'none';
         }
     });
+}
+
+
+// ==================== MAP LAYER SYSTEM ====================
+// Render map layers
+function renderMapLayers(item) {
+    const layersContainer = document.getElementById('map-layers-container');
+    if (!layersContainer) return;
+
+    layersContainer.innerHTML = '';
+
+    const isInEditMode = currentUser && currentUser.role === 'admin' && isEditMode;
+    const selectedChar = sessionStorage.getItem('selectedCharacter');
+
+    if (item.layers && item.layers.length > 0) {
+        // Sort layers if they have an order property, otherwise use array order
+        // We assume layers are stored in display order (index 0 = bottom)
+        item.layers.forEach((layer, index) => {
+            // Check visibility (default true if undefined)
+            if (layer.visible === false) return;
+
+            // Visibility Restriction Check
+            if (layer.restrictedTo && layer.restrictedTo.length > 0) {
+                // Admin in Edit Mode sees everything
+                if (!isInEditMode) {
+                    // Check if current selected character is allowed
+                    const canSee = selectedChar && layer.restrictedTo.map(c => c.toLowerCase().trim()).includes(selectedChar.toLowerCase().trim());
+                    if (!canSee) return;
+                }
+            }
+
+            const layerImg = document.createElement('img');
+            layerImg.src = layer.image;
+            layerImg.className = 'map-layer';
+            // Z-index: Base (1) + index on top of background
+            // Background is usually 0 or implicit
+            layerImg.style.zIndex = index + 1;
+            layerImg.alt = layer.name;
+
+            // Add visual cue for admins if layer is restricted
+            if (isInEditMode && layer.restrictedTo && layer.restrictedTo.length > 0) {
+                layerImg.style.opacity = '0.7'; // Slight transparency to indicate it's special/restricted
+                // Could also render a border or indicator if needed
+            }
+
+            layersContainer.appendChild(layerImg);
+        });
+    }
+}
+
+// Show Layer Manager Modal
+function showLayerManager(item, container) {
+    // Check if layers array exists
+    if (!item.layers) item.layers = [];
+
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'layer-manager-modal';
+
+    const updateLayerList = () => {
+        const list = document.getElementById('layer-list');
+        list.innerHTML = '';
+
+        if (item.layers.length === 0) {
+            list.innerHTML = '<div class="no-layers">No layers added yet.</div>';
+            return;
+        }
+
+        // Render layers in reverse order for the list (Top layer at top of list)
+        // because usually users think "Top of list = Top layer visible"
+        [...item.layers].reverse().forEach((layer, reverseIndex) => {
+            const index = item.layers.length - 1 - reverseIndex;
+            const li = document.createElement('div');
+            li.className = 'layer-item';
+
+            li.innerHTML = `
+                <div class="layer-preview">
+                    <img src="${layer.image}" alt="Preview">
+                </div>
+                <div class="layer-info">
+                    <span class="layer-name" contenteditable="true" title="Click to rename">${layer.name}</span>
+                    <input type="text" class="layer-restricted-input" 
+                        value="${layer.restrictedTo ? layer.restrictedTo.join(', ') : ''}" 
+                        placeholder="Visible to (e.g. Aria, Grog)..."
+                        title="Comma-separated list of characters who can see this layer. Leave empty for everyone.">
+                </div>
+                <div class="layer-controls">
+                    <button class="btn-layer-up" title="Move Up (Bring Forward)" ${index === item.layers.length - 1 ? 'disabled' : ''}>⬆️</button>
+                    <button class="btn-layer-down" title="Move Down (Send Backward)" ${index === 0 ? 'disabled' : ''}>⬇️</button>
+                    <button class="btn-layer-delete" title="Delete">🗑️</button>
+                </div>
+            `;
+
+            // Edit Name
+            const nameSpan = li.querySelector('.layer-name');
+            nameSpan.addEventListener('blur', () => {
+                layer.name = nameSpan.innerText;
+                persistData();
+            });
+
+            // Edit Restricted List
+            const restrictedInput = li.querySelector('.layer-restricted-input');
+            restrictedInput.addEventListener('change', () => {
+                const val = restrictedInput.value.trim();
+                layer.restrictedTo = val ? val.split(',').map(s => s.trim()).filter(s => s) : [];
+                persistData();
+                renderMapLayers(item); // Update view to show opacity change if applicable
+            });
+
+            // Move Up (Higher Z-index / Later in array)
+            li.querySelector('.btn-layer-up').onclick = () => {
+                if (index < item.layers.length - 1) {
+                    const temp = item.layers[index];
+                    item.layers[index] = item.layers[index + 1];
+                    item.layers[index + 1] = temp;
+                    persistData();
+                    updateLayerList();
+                    renderMapLayers(item);
+                }
+            };
+
+            // Move Down (Lower Z-index / Earlier in array)
+            li.querySelector('.btn-layer-down').onclick = () => {
+                if (index > 0) {
+                    const temp = item.layers[index];
+                    item.layers[index] = item.layers[index - 1];
+                    item.layers[index - 1] = temp;
+                    persistData();
+                    updateLayerList();
+                    renderMapLayers(item);
+                }
+            };
+
+            // Delete
+            li.querySelector('.btn-layer-delete').onclick = () => {
+                if (confirm(`Delete layer "${layer.name}"?`)) {
+                    item.layers.splice(index, 1);
+                    persistData();
+                    updateLayerList();
+                    renderMapLayers(item);
+                }
+            };
+
+            list.appendChild(li);
+        });
+    };
+
+    modal.innerHTML = `
+        <div class="layer-manager-content">
+            <div class="layer-manager-header">
+                <h2>Manage Layers</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="layer-list-container">
+                <div id="layer-list" class="layer-list"></div>
+            </div>
+            <div class="layer-manager-footer">
+                <button class="btn-primary" id="add-new-layer-btn">➕ Add New Layer</button>
+                <input type="file" id="layer-upload-input" accept="image/*" style="display: none;">
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    updateLayerList();
+
+    // Close Modal
+    const closeModal = () => {
+        modal.remove();
+        renderMapDetail(container, item); // Re-render to ensure everything syncs well
+    };
+    modal.querySelector('.close-modal').onclick = closeModal;
+
+    // Add New Layer
+    const addBtn = modal.querySelector('#add-new-layer-btn');
+    const fileInput = modal.querySelector('#layer-upload-input');
+
+    addBtn.onclick = () => fileInput.click();
+
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const newLayer = {
+                id: 'layer_' + Date.now(),
+                name: 'Layer ' + (item.layers.length + 1),
+                image: event.target.result,
+                visible: true
+            };
+            item.layers.push(newLayer);
+            persistData(); // Save map layers
+            updateLayerList();
+            renderMapLayers(item); // Update background view immediately
+        };
+        reader.readAsDataURL(file);
+        fileInput.value = '';
+    };
+
+    // Close on click outside
+    modal.onclick = (e) => {
+        if (e.target === modal) closeModal();
+    };
 }
 
 document.addEventListener('DOMContentLoaded', initWiki);

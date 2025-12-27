@@ -34,50 +34,6 @@
                     <section class="admin-section">
                         <h3>General Configuration</h3>
 
-                        <!-- Rich Text Toolbar -->
-                        <div class="rich-text-toolbar" id="adminToolbar"
-                            style="margin-bottom: 15px; display: flex; gap: 5px; flex-wrap: wrap; padding: 8px; background: var(--bg-dark); border-radius: 6px;">
-                            <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"
-                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;"><b>B</b></button>
-                            <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"
-                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;"><i>I</i></button>
-                            <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"
-                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;"><u>U</u></button>
-                            <button type="button" data-cmd="strikeThrough" title="Strikethrough"
-                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;"><s>S</s></button>
-                            <span style="width: 1px; background: var(--border-color); margin: 0 5px;"></span>
-                            <select id="adminColorSelect" title="Text Color"
-                                style="padding: 6px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;">
-                                <option value="">Color</option>
-                                <option value="#ffffff">White</option>
-                                <option value="#888888">Gray</option>
-                                <option value="#f44336">Red</option>
-                                <option value="#ff9800">Orange</option>
-                                <option value="#ffeb3b">Yellow</option>
-                                <option value="#4CAF50">Green</option>
-                                <option value="#2196F3">Blue</option>
-                                <option value="#9c27b0">Violet</option>
-                                <option value="custom">Custom...</option>
-                            </select>
-                            <input type="color" id="adminCustomColor"
-                                style="width: 0; height: 0; opacity: 0; position: absolute;" title="Pick custom color">
-                            <span style="width: 1px; background: var(--border-color); margin: 0 5px;"></span>
-                            <button type="button" data-cmd="removeFormat" title="Clear Formatting"
-                                style="padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 4px; cursor: pointer;">✕</button>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Homepage Hero Title</label>
-                            <div id="wiki-hero-title" contenteditable="true"
-                                style="width: 100%; min-height: 40px; padding: 10px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 15px;">
-                            </div>
-
-                            <label>Homepage Hero Subtitle</label>
-                            <div id="wiki-hero-subtitle" contenteditable="true"
-                                style="width: 100%; min-height: 80px; padding: 10px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
-                            </div>
-                        </div>
-
                         <!-- Background Image Section -->
                         <div class="form-group"
                             style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
@@ -302,9 +258,6 @@
             // We can check if localWikiData is populated.
 
             if (typeof localWikiData !== 'undefined') {
-                document.getElementById('wiki-hero-title').innerHTML = localWikiData.heroTitle || 'Welcome to the Wiki';
-                document.getElementById('wiki-hero-subtitle').innerHTML = localWikiData.heroSubtitle || '';
-
                 // Load background image preview
                 updateBgImagePreview();
 
@@ -319,9 +272,6 @@
                     updateFontSizePreview(savedFontSize);
                 }
             }
-
-            // Initialize toolbar
-            initAdminToolbar();
 
             // Initialize background image handlers
             initBgImageHandlers();
@@ -443,10 +393,12 @@
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(tempImg, 0, 0, width, height);
 
-                        // Store as JPEG for smaller size
                         const base64 = canvas.toDataURL('image/jpeg', 0.8);
                         localWikiData.backgroundImage = base64;
+                        persistData(); // Save to localStorage
                         updateBgImagePreview();
+                        if (typeof applyBackgroundImage === 'function') applyBackgroundImage();
+                        alert('Background image uploaded successfully!');
                     };
                     tempImg.src = event.target.result;
                 };
@@ -457,48 +409,18 @@
             deleteBtn.addEventListener('click', () => {
                 if (confirm('Remove background image?')) {
                     localWikiData.backgroundImage = null;
+                    persistData(); // Save to localStorage
                     updateBgImagePreview();
+                    if (typeof applyBackgroundImage === 'function') applyBackgroundImage();
+                    alert('Background image removed!');
                 }
-            });
-        }
-
-        function initAdminToolbar() {
-            // Toolbar command buttons
-            document.querySelectorAll('#adminToolbar button[data-cmd]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const cmd = btn.dataset.cmd;
-                    document.execCommand(cmd, false, null);
-                });
-            });
-
-            // Color picker
-            const colorSelect = document.getElementById('adminColorSelect');
-            const customColorPicker = document.getElementById('adminCustomColor');
-
-            colorSelect.addEventListener('change', (e) => {
-                if (e.target.value === 'custom') {
-                    customColorPicker.click();
-                    e.target.value = '';
-                } else if (e.target.value) {
-                    document.execCommand('foreColor', false, e.target.value);
-                    e.target.value = '';
-                }
-            });
-
-            customColorPicker.addEventListener('input', (e) => {
-                document.execCommand('foreColor', false, e.target.value);
             });
         }
 
         function saveWikiSettings() {
-            const newTitle = document.getElementById('wiki-hero-title').innerHTML;
-            const newSubtitle = document.getElementById('wiki-hero-subtitle').innerHTML;
             const defaultFontSize = document.getElementById('defaultFontSize').value;
 
             if (typeof localWikiData !== 'undefined') {
-                localWikiData.heroTitle = newTitle;
-                localWikiData.heroSubtitle = newSubtitle;
                 // backgroundImage is already set by upload handler
                 // Save accent color
                 localWikiData.accentColor = selectedAccentColor;
@@ -533,7 +455,6 @@
                     <thead>
                         <tr style="background: var(--bg-card); border-bottom: 1px solid var(--border-color);">
                             <th style="padding: 12px; text-align: left;">Username</th>
-                            <th style="padding: 12px; text-align: left;">Role</th>
                             <th style="padding: 12px; text-align: left;">Characters</th>
                             <th style="padding: 12px; text-align: right;">Actions</th>
                         </tr>
@@ -544,25 +465,30 @@
             localUsers.forEach((u, index) => {
                 const chars = u.characters || [];
                 const charsDisplay = chars.length > 0
-                    ? chars.map(c => {
+                    ? chars.map((c, charIdx) => {
                         const name = (typeof c === 'string') ? c : c.name;
-                        return `<span style="background: var(--accent-blue); padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin-right: 4px;">${name}</span>`;
+                        const sheetUrl = (typeof c === 'object' && c.sheetUrl) ? c.sheetUrl : '';
+                        const sheetBtn = sheetUrl
+                            ? `<a href="${sheetUrl}" target="_blank" title="Open character sheet" style="margin-left: 2px; text-decoration: none;">📄</a>`
+                            : '';
+                        return `<span style="background: var(--accent-blue); padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin-right: 4px;">${name}${sheetBtn}</span>`;
                     }).join('')
                     : '<span style="color: var(--text-secondary); font-size: 0.8em;">No characters</span>';
 
+                const usernameDisplay = u.role === 'admin'
+                    ? `<span style="color: #FFD700; margin-right: 4px;" title="Administrator">👑</span>${u.username}`
+                    : u.username;
+
                 html += `
                     <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 12px;">${u.username}</td>
-                        <td style="padding: 12px;">
-                            <span style="background: ${u.role === 'admin' ? '#ff5252' : 'var(--accent-blue)'}; padding: 4px 8px; border-radius: 4px; font-size: 0.8em;">
-                                ${u.role}
-                            </span>
-                        </td>
+                        <td style="padding: 12px;">${usernameDisplay}</td>
                         <td style="padding: 12px;">${charsDisplay}</td>
                         <td style="padding: 12px; text-align: right;">
-                            <button class="btn-back chars-user-btn" data-index="${index}" style="padding: 5px 10px; font-size: 0.8rem; width: auto; margin-right: 5px; background-color: #9c27b0;">Characters</button>
-                            <button class="btn-back edit-user-btn" data-index="${index}" style="padding: 5px 10px; font-size: 0.8rem; width: auto; margin-right: 5px;">Edit</button>
-                            <button class="btn-back delete-user-btn" data-index="${index}" data-confirm="idle" style="padding: 5px 10px; font-size: 0.8rem; width: auto; background-color: #ff5252; transition: all 0.2s;">Delete</button>
+                            <div style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
+                                <button class="btn-back chars-user-btn" data-index="${index}" style="padding: 4px 8px; font-size: 0.75rem; width: 80px; background-color: #9c27b0;">Characters</button>
+                                <button class="btn-back edit-user-btn" data-index="${index}" style="padding: 4px 8px; font-size: 0.75rem; width: 80px;">Edit</button>
+                                <button class="btn-back delete-user-btn" data-index="${index}" data-confirm="idle" style="padding: 4px 8px; font-size: 0.75rem; width: 80px; background-color: #ff5252; transition: all 0.2s;">Delete</button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -614,6 +540,95 @@
                 btn.addEventListener('click', () => {
                     openCharacterManager(parseInt(btn.dataset.index));
                 });
+            });
+        }
+
+        // Edit User Modal
+        function editUserPrompt(userIndex) {
+            const localUsers = getLocalUsers();
+            const user = localUsers[userIndex];
+
+            // Create modal overlay
+            let modal = document.getElementById('editUserModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'editUserModal';
+                modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+                document.body.appendChild(modal);
+            }
+
+            modal.innerHTML = `
+                <div style="background: var(--bg-card); padding: 30px; border-radius: 12px; width: 400px; max-width: 90%;">
+                    <h3 style="margin-top: 0; margin-bottom: 20px; color: var(--accent-primary);">Edit User: ${user.username}</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Username</label>
+                        <input type="text" id="edit-username" value="${user.username}" style="width: 100%; padding: 10px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">Role</label>
+                        <select id="edit-role" style="width: 100%; padding: 10px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                            <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
+                            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; color: var(--text-secondary);">New Password (leave empty to keep current)</label>
+                        <input type="password" id="edit-password" placeholder="Enter new password..." style="width: 100%; padding: 10px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button id="cancel-edit-user" class="btn-back" style="padding: 10px 20px;">Cancel</button>
+                        <button id="save-edit-user" class="btn-primary" style="padding: 10px 20px;">Save Changes</button>
+                    </div>
+                </div>
+            `;
+            modal.style.display = 'flex';
+
+            // Cancel button
+            document.getElementById('cancel-edit-user').addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+
+            // Save button
+            document.getElementById('save-edit-user').addEventListener('click', async () => {
+                const newUsername = document.getElementById('edit-username').value.trim();
+                const newRole = document.getElementById('edit-role').value;
+                const newPassword = document.getElementById('edit-password').value;
+
+                if (!newUsername) {
+                    alert('Username cannot be empty.');
+                    return;
+                }
+
+                // Check if username already exists (for different user)
+                const existingIndex = localUsers.findIndex(u => u.username.toLowerCase() === newUsername.toLowerCase());
+                if (existingIndex !== -1 && existingIndex !== userIndex) {
+                    alert('Username already exists.');
+                    return;
+                }
+
+                // Update username and role (characters remain unchanged)
+                localUsers[userIndex].username = newUsername;
+                localUsers[userIndex].role = newRole;
+
+                // Update password if provided
+                if (newPassword) {
+                    localUsers[userIndex].passwordHash = await hashPassword(newPassword);
+                }
+
+                saveLocalUsers(localUsers);
+                modal.style.display = 'none';
+                renderUserList();
+            });
+
+            // Close on overlay click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                }
             });
         }
 
@@ -822,36 +837,7 @@
             alert('User added successfully!');
         }
 
-        async function editUserPrompt(index) {
-            const localUsers = getLocalUsers();
-            const user = localUsers[index];
 
-            const newUsername = prompt('Enter new username:', user.username);
-            if (newUsername === null) return; // Cancelled
-
-            const newRole = prompt('Enter role (admin or custom):', user.role);
-            if (newRole === null) return;
-
-            const changePassword = confirm('Do you want to change the password?');
-            let newPasswordHash = user.passwordHash;
-
-            if (changePassword) {
-                const newPassword = prompt('Enter new password:');
-                if (newPassword) {
-                    newPasswordHash = await hashPassword(newPassword);
-                }
-            }
-
-            localUsers[index] = {
-                username: newUsername.trim() || user.username,
-                passwordHash: newPasswordHash,
-                role: (newRole === 'admin' || newRole === 'custom') ? newRole : user.role
-            };
-
-            saveLocalUsers(localUsers);
-            renderUserList();
-            alert('User updated successfully!');
-        }
 
         async function hashPassword(password) {
             const encoder = new TextEncoder();

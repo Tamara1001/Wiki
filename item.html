@@ -18,7 +18,7 @@
         <!-- Sidebar Navigation -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <a href="index.html" class="logo">Game Wiki</a>
+                <a href="index.html" class="logo" id="sidebarLogo">Game Wiki</a>
                 <button class="close-sidebar-btn" id="closeSidebar" aria-label="Close Sidebar">&times;</button>
             </div>
             <nav class="sidebar-nav">
@@ -26,13 +26,19 @@
                     <!-- Populated by JS -->
                 </ul>
             </nav>
+            <button class="sidebar-collapse-btn" id="sidebarToggle" title="Toggle Sidebar">◀</button>
         </aside>
 
         <!-- Overlay for mobile sidebar -->
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <!-- Main Content -->
-        <div class="main-content">
+        <!-- Main Content (hidden until data loads) -->
+        <style>
+            .main-content.loading {
+                opacity: 0;
+            }
+        </style>
+        <div class="main-content loading">
             <header class="top-bar">
                 <button class="menu-btn" id="menuBtn" aria-label="Open Sidebar">
                     <span class="hamburger"></span>

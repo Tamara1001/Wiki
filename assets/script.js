@@ -2056,12 +2056,47 @@ function getUserCharacters(username) {
     return user ? (user.characters || []) : [];
 }
 
-function hasPermission(item) {
-    if (!item.restrictedTo) return true;
-    if (currentUser && currentUser.role === 'admin') return true;
-    if (!currentUser) return false;
+// Utility: Compress Image
+function compressImage(file, maxWidth, maxHeight, quality = 0.7) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
 
-    // Check permissions based on selected character (not username)
+                // Calculate new dimensions
+                if (width > maxWidth || height > maxHeight) {
+                    const ratio = Math.min(maxWidth / width, maxHeight / height);
+                    width = width * ratio;
+                    height = height * ratio;
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Compress to WebP (or JPEG fallback)
+                // WebP is widely supported and smaller
+                resolve(canvas.toDataURL('image/webp', quality));
+            };
+            img.onerror = (error) => reject(error);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+}
+
+// Helper to check permissions
+function hasPermission(item) {
+    if (!item.restrictedTo || item.restrictedTo.length === 0) return true;
+    if (currentUser && currentUser.role === 'admin') return true;
+
+    // Check local session character
     const selectedChar = sessionStorage.getItem('selectedCharacter');
     if (!selectedChar) return false;
 
@@ -4027,17 +4062,26 @@ function renderMapDetail(container, item) {
             `}
             
             <div class="map-container" id="map-canvas">
-                ${item.mapImage ? `<img src="${item.mapImage}" class="map-background" alt="Map">` : `
-                    <div class="map-placeholder">
-                        ${isInEditMode ? '📍 Click "Set Background" to add a map image' : 'No map image set'}
-                    </div>
-                `}
+                <div class="map-surface" id="map-surface">
+                    ${item.mapImage ? `<img src="${item.mapImage}" class="map-background" alt="Map">` : `
+                        <div class="map-placeholder">
+                            ${isInEditMode ? '📍 Click "Set Background" to add a map image' : 'No map image set'}
+                        </div>
+                    `}
+    
+                    <div id="map-layers-container"></div>
+                    <div id="poi-layer"></div>
+                </div>
 
-                <div id="map-layers-container"></div>
-                <div id="poi-layer"></div>
+                <div class="map-view-controls">
+                    <button id="map-zoom-in" title="Zoom In">+</button>
+                    <button id="map-zoom-out" title="Zoom Out">−</button>
+                    <button id="map-reset" title="Reset View">↺</button>
+                    <button id="map-fullscreen" title="Toggle Fullscreen">⛶</button>
+                </div>
             </div >
-
-    ${isInEditMode ? `
+    
+            ${isInEditMode ? `
                 <div class="map-edit-controls">
                     <button class="btn-set-bg" id="set-map-bg-btn">🖼️ Set Background</button>
                     <button class="btn-manage-layers" id="manage-layers-btn" style="background: #2196F3;">Stack Layers</button>
@@ -4046,14 +4090,17 @@ function renderMapDetail(container, item) {
                 <input type="file" id="map-bg-input" accept="image/*" style="display: none;">
             ` : ''
         }
-
-<div class="actions" style="margin-top: 30px;">
-    <button id="map-back-btn" class="btn-back">Go Back</button>
-</div>
-        </article >
-    `;
+    
+    <div class="actions" style="margin-top: 30px;">
+        <button id="map-back-btn" class="btn-back">Go Back</button>
+    </div>
+            </article >
+        `;
 
     container.innerHTML = html;
+
+    // Initialize Interactive Map (Zoom/Pan)
+    initMapInteractive(document.getElementById('map-canvas'), document.getElementById('map-surface'));
 
     // Render Layers
     renderMapLayers(item);
@@ -4076,8 +4123,14 @@ function renderMapDetail(container, item) {
         if (titleEdit) {
             makeRichEditable(titleEdit);
             titleEdit.addEventListener('blur', () => {
-                item.name = titleEdit.innerHTML;
-                persistData();
+                if (item.name !== titleEdit.innerText) {
+                    item.name = titleEdit.innerText; // Use innerText for title to avoid HTML tags
+                    persistData();
+                    // Live Update UI
+                    renderNavigation(); // Update sidebar
+                    const breadcrumbSpan = document.querySelector('.breadcrumb span:last-child');
+                    if (breadcrumbSpan) breadcrumbSpan.textContent = item.name;
+                }
             });
         }
 
@@ -4086,8 +4139,11 @@ function renderMapDetail(container, item) {
         if (descEdit) {
             makeRichEditable(descEdit);
             descEdit.addEventListener('blur', () => {
-                item.description = descEdit.innerHTML;
+                item.description = descEdit.innerHTML; // Keep HTML for description
                 persistData();
+                // Visual feedback?
+                descEdit.style.borderColor = 'var(--accent-success)';
+                setTimeout(() => descEdit.style.borderColor = 'var(--border-color)', 500);
             });
         }
 
@@ -4100,13 +4156,14 @@ function renderMapDetail(container, item) {
             const file = e.target.files[0];
             if (!file) return;
 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                item.mapImage = event.target.result;
+            compressImage(file, 1920, 1080, 0.8).then(base64 => {
+                item.mapImage = base64;
                 persistData();
                 renderMapDetail(container, item);
-            };
-            reader.readAsDataURL(file);
+            }).catch(err => {
+                console.error("Compression error:", err);
+                alert("Error processing image.");
+            });
         };
 
         // Add POI button
@@ -4118,6 +4175,29 @@ function renderMapDetail(container, item) {
         document.getElementById('manage-layers-btn').onclick = () => {
             showLayerManager(item, container);
         };
+    }
+
+    // Add floating Save/Upload buttons (consistent with generic items)
+    const existingSaveAllBtn = document.getElementById('saveAllBtn');
+    if (existingSaveAllBtn) existingSaveAllBtn.remove();
+    const existingUploadBtn = document.getElementById('floatingUploadBtn');
+    if (existingUploadBtn) existingUploadBtn.remove();
+
+    if (isInEditMode) {
+        const saveAllBtn = document.createElement('button');
+        saveAllBtn.id = 'saveAllBtn';
+        saveAllBtn.className = 'save-all-btn';
+        saveAllBtn.textContent = '💾 Save All Changes';
+        saveAllBtn.addEventListener('click', saveAllChanges);
+        document.body.appendChild(saveAllBtn);
+
+        const uploadBtn = document.createElement('button');
+        uploadBtn.id = 'floatingUploadBtn';
+        uploadBtn.className = 'save-all-btn';
+        uploadBtn.style.cssText = 'right: 230px; background: linear-gradient(135deg, #4CAF50, #2E7D32);';
+        uploadBtn.textContent = '☁️ Upload Online';
+        uploadBtn.addEventListener('click', uploadToGitHub);
+        document.body.appendChild(uploadBtn);
     }
 }
 
@@ -4259,10 +4339,11 @@ function enablePOIDrag(marker, item, poiIndex) {
     document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
 
-        const mapContainer = document.getElementById('map-canvas');
-        if (!mapContainer) return;
+        // Use map-surface if available to account for Zoom/Pan transform
+        const mapElement = document.getElementById('map-surface') || document.getElementById('map-canvas');
+        if (!mapElement) return;
 
-        const rect = mapContainer.getBoundingClientRect();
+        const rect = mapElement.getBoundingClientRect();
         const x = ((e.clientX - rect.left) / rect.width) * 100;
         const y = ((e.clientY - rect.top) / rect.height) * 100;
 
@@ -4363,7 +4444,20 @@ function showPOIModal(item, editIndex, container) {
     const scaleInput = document.getElementById('poi-scale-input');
     const scaleDisplay = document.getElementById('poi-scale-display');
     scaleInput.oninput = () => {
-        scaleDisplay.textContent = scaleInput.value + 'x';
+        const val = parseFloat(scaleInput.value);
+        scaleDisplay.textContent = val.toFixed(1) + 'x';
+
+        // Live Preview on Map
+        if (isEditing) {
+            const marker = document.querySelector(`.poi-marker[data-poi-index="${editIndex}"]`);
+            if (marker) {
+                const base = poi.image ? 40 : 20;
+                const size = base * val;
+                marker.style.width = `${size}px`;
+                marker.style.height = `${size}px`;
+                marker.style.fontSize = `${28 * val}px`;
+            }
+        }
     };
 
     // Image preview click -> Trigger Upload
@@ -4387,48 +4481,54 @@ function showPOIModal(item, editIndex, container) {
         const file = e.target.files[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            selectedImage = event.target.result;
+        compressImage(file, 150, 150, 0.7).then(base64 => {
+            selectedImage = base64;
             document.getElementById('poi-image-preview').innerHTML = `<img src="${selectedImage}">`;
-        };
-        reader.readAsDataURL(file);
+        }).catch(err => {
+            console.error(err);
+        });
     };
 
     // Save
     document.getElementById('poi-save-btn').onclick = () => {
-        const title = document.getElementById('poi-title-input').value;
-        if (!title) {
-            alert('Title is required');
-            return;
+        try {
+            const title = document.getElementById('poi-title-input').value;
+            if (!title) {
+                alert('Title is required');
+                return;
+            }
+
+            const layerId = document.getElementById('poi-layer-select').value;
+            const scale = parseFloat(document.getElementById('poi-scale-input').value) || 1;
+            const restrictedVal = document.getElementById('poi-restricted-input').value.trim();
+            const restrictedTo = restrictedVal ? restrictedVal.split(',').map(s => s.trim()).filter(s => s) : [];
+
+            const newPOI = {
+                title: title,
+                description: document.getElementById('poi-desc-input').value,
+                image: selectedImage,
+                link: document.getElementById('poi-link-input').value,
+                restrictedTo: restrictedTo,
+                x: poi.x,
+                y: poi.y,
+                layerId: layerId || null, // Save selected layer ID
+                scale: scale
+            };
+
+            if (isEditing) {
+                item.pointsOfInterest[editIndex] = newPOI;
+            } else {
+                item.pointsOfInterest.push(newPOI);
+            }
+
+            persistData();
+            renderPOIs(item);
+        } catch (error) {
+            console.error('Error saving POI:', error);
+            alert('An error occurred while saving. Please check the console.');
+        } finally {
+            document.body.removeChild(modal);
         }
-
-        const layerId = document.getElementById('poi-layer-select').value;
-        const scale = parseFloat(document.getElementById('poi-scale-input').value) || 1;
-        const restrictedVal = document.getElementById('poi-restricted-input').value.trim();
-        const restrictedTo = restrictedVal ? restrictedVal.split(',').map(s => s.trim()).filter(s => s) : [];
-
-        const newPOI = {
-            title: title,
-            description: document.getElementById('poi-desc-input').value,
-            image: selectedImage,
-            link: document.getElementById('poi-link-input').value,
-            restrictedTo: restrictedTo,
-            x: poi.x,
-            y: poi.y,
-            layerId: layerId || null, // Save selected layer ID
-            scale: scale
-        };
-
-        if (isEditing) {
-            item.pointsOfInterest[editIndex] = newPOI;
-        } else {
-            item.pointsOfInterest.push(newPOI);
-        }
-
-        persistData();
-        renderPOIs(item);
-        document.body.removeChild(modal);
     };
 
     // Delete
@@ -4489,11 +4589,18 @@ function addItem(catId) {
 
     const category = localWikiData.categories.find(c => c.id === catId);
     if (category) {
+        // Auto-detect Map type based on category name
+        const isMapCategory = category.name.toLowerCase().includes('map') || category.name.toLowerCase().includes('cart');
+
         category.items.push({
             id,
             name,
             description: desc,
-            tags: ['New']
+            tags: ['New'],
+            type: isMapCategory ? 'map' : 'default', // Default to 'map' if in a Map category
+            mapImage: null, // Initialize mapImage for maps
+            layers: [],
+            pointsOfInterest: []
         });
         persistData();
         renderHome(document.getElementById('contentGrid'));
@@ -5989,6 +6096,7 @@ function showLayerManager(item, container) {
                 layer.restrictedTo = val ? val.split(',').map(s => s.trim()).filter(s => s) : [];
                 persistData();
                 renderMapLayers(item); // Update view to show opacity change if applicable
+                renderPOIs(item); // Update POI visibility
             });
 
             // Move Up (Higher Z-index / Later in array)
@@ -6000,6 +6108,7 @@ function showLayerManager(item, container) {
                     persistData();
                     updateLayerList();
                     renderMapLayers(item);
+                    renderPOIs(item);
                 }
             };
 
@@ -6012,6 +6121,7 @@ function showLayerManager(item, container) {
                     persistData();
                     updateLayerList();
                     renderMapLayers(item);
+                    renderPOIs(item);
                 }
             };
 
@@ -6022,6 +6132,7 @@ function showLayerManager(item, container) {
                     persistData();
                     updateLayerList();
                     renderMapLayers(item);
+                    renderPOIs(item);
                 }
             };
 
@@ -6065,26 +6176,127 @@ function showLayerManager(item, container) {
         const file = e.target.files[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
+        compressImage(file, 1920, 1080, 0.8).then(base64 => {
             const newLayer = {
                 id: 'layer_' + Date.now(),
                 name: 'Layer ' + (item.layers.length + 1),
-                image: event.target.result,
+                image: base64,
                 visible: true
             };
             item.layers.push(newLayer);
             persistData(); // Save map layers
             updateLayerList();
             renderMapLayers(item); // Update background view immediately
-        };
-        reader.readAsDataURL(file);
+            renderPOIs(item);
+        }).catch(err => {
+            console.error(err);
+            alert("Error uploading layer.");
+        });
         fileInput.value = '';
     };
 
     // Close on click outside
     modal.onclick = (e) => {
         if (e.target === modal) closeModal();
+    };
+}
+
+// Map Interaction (Zoom/Pan/Fullscreen)
+function initMapInteractive(container, surface) {
+    if (!container || !surface) return;
+
+    let scale = 1;
+    let pointX = 0;
+    let pointY = 0;
+    let startX = 0;
+    let startY = 0;
+    let isPanning = false;
+
+    // Apply Transform
+    function setTransform() {
+        surface.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        container.style.setProperty('--map-scale-inverse', 1 / scale);
+    }
+
+    // Zoom Logic
+    function zoom(delta, clientX, clientY) {
+        const rect = container.getBoundingClientRect();
+
+        // Mouse relative to container (0 to width)
+        // If clientX/Y provided (MouseWheel), zoom towards point. Else center.
+        const originX = clientX !== undefined ? clientX - rect.left : rect.width / 2;
+        const originY = clientY !== undefined ? clientY - rect.top : rect.height / 2;
+
+        const prevScale = scale;
+        scale += delta;
+        scale = Math.max(1, Math.min(scale, 10)); // Clamp 1x to 10x
+
+        // Math to keep origin stable:
+        // (origin - point) / prevScale = (origin - newPoint) / newScale
+        // newPoint = origin - (origin - point) * (newScale / prevScale)
+
+        pointX = originX - (originX - pointX) * (scale / prevScale);
+        pointY = originY - (originY - pointY) * (scale / prevScale);
+
+        // Boundary Check (Simple)
+        // For now, loose boundaries
+        setTransform();
+    }
+
+    // Mouse Wheel
+    container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        zoom(delta, e.clientX, e.clientY);
+    });
+
+    // Panning (Mouse Down)
+    container.addEventListener('mousedown', (e) => {
+        // Allow Interaction with Controls or POIs
+        if (e.target.closest('button') || e.target.closest('.poi-marker')) return;
+
+        e.preventDefault();
+        startX = e.clientX - pointX;
+        startY = e.clientY - pointY;
+        isPanning = true;
+        container.classList.add('panning');
+    });
+
+    // Mouse Move
+    document.addEventListener('mousemove', (e) => {
+        if (!isPanning) return;
+        e.preventDefault();
+        pointX = e.clientX - startX;
+        pointY = e.clientY - startY;
+        setTransform();
+    });
+
+    // Mouse Up
+    document.addEventListener('mouseup', () => {
+        isPanning = false;
+        container.classList.remove('panning');
+    });
+
+    // Controls
+    const btnZoomIn = container.querySelector('#map-zoom-in');
+    const btnZoomOut = container.querySelector('#map-zoom-out');
+    const btnReset = container.querySelector('#map-reset');
+    const btnFull = container.querySelector('#map-fullscreen');
+
+    if (btnZoomIn) btnZoomIn.onclick = () => zoom(0.5);
+    if (btnZoomOut) btnZoomOut.onclick = () => zoom(-0.5);
+    if (btnReset) btnReset.onclick = () => {
+        scale = 1; pointX = 0; pointY = 0;
+        setTransform();
+    };
+    if (btnFull) btnFull.onclick = () => {
+        container.classList.toggle('fullscreen-mode');
+        // Reset transform on toggle to ensure proper center alignment in new mode
+        scale = 1; pointX = 0; pointY = 0;
+        setTransform();
+
+        // Update icon based on state
+        btnFull.textContent = container.classList.contains('fullscreen-mode') ? '✖' : '⛶';
     };
 }
 
